@@ -1,179 +1,162 @@
-<!DOCTYPE html>
-<html lang="es">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Historial de Importaciones</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Poppins', sans-serif;
-        }
+@extends('layouts.admin')
 
-        body {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 2rem;
-        }
+@section('title', 'Historial de Importaciones')
 
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 15px;
-            padding: 2rem;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-        }
+@section('content')
+<div class="page-header">
+    <h1 class="page-title">Historial de Importaciones</h1>
+    <p class="page-description">Consulta y gestiona todas las importaciones de archivos Excel realizadas.</p>
+</div>
 
-        h1 {
-            color: #333;
-            margin-bottom: 1.5rem;
-            font-size: 2rem;
-        }
+<style>
+    .table-card {
+        background: white;
+        border-radius: 15px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        overflow: hidden;
+    }
 
-        .actions {
-            display: flex;
-            gap: 1rem;
-            margin-bottom: 2rem;
-        }
+    .table-wrapper {
+        overflow-x: auto;
+    }
 
-        .btn {
-            padding: 0.75rem 1.5rem;
-            border-radius: 8px;
-            text-decoration: none;
-            font-weight: 500;
-            transition: all 0.3s;
-            border: none;
-            cursor: pointer;
-        }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+    }
 
-        .btn-primary {
-            background: #667eea;
-            color: white;
-        }
+    thead {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
 
-        .btn-primary:hover {
-            background: #5568d3;
-        }
+    th {
+        padding: 1.25rem 1.5rem;
+        text-align: left;
+        font-weight: 600;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
 
-        .btn-secondary {
-            background: #6c757d;
-            color: white;
-        }
+    td {
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid #f1f3f5;
+        color: #495057;
+    }
 
-        .btn-secondary:hover {
-            background: #5a6268;
-        }
+    tbody tr {
+        transition: all 0.2s;
+    }
 
-        .btn-success {
-            background: #28a745;
-            color: white;
-            font-size: 0.9rem;
-            padding: 0.5rem 1rem;
-        }
+    tbody tr:hover {
+        background: #f8f9fa;
+    }
 
-        .btn-success:hover {
-            background: #218838;
-        }
+    .badge {
+        display: inline-block;
+        padding: 0.35rem 0.85rem;
+        border-radius: 20px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
 
-        .alert {
-            padding: 1rem;
-            border-radius: 8px;
-            margin-bottom: 1.5rem;
-        }
+    .badge-active {
+        background: #d4edda;
+        color: #155724;
+    }
 
-        .alert-success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
+    .btn-select {
+        padding: 0.5rem 1.25rem;
+        background: #28a745;
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.3s;
+        font-size: 0.9rem;
+    }
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 1.5rem;
-        }
+    .btn-select:hover {
+        background: #218838;
+        transform: translateY(-2px);
+    }
 
-        thead {
-            background: #f8f9fa;
-        }
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+    }
 
-        th, td {
-            padding: 1rem;
-            text-align: left;
-            border-bottom: 1px solid #dee2e6;
-        }
+    .empty-icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+    }
 
-        th {
-            font-weight: 600;
-            color: #495057;
-        }
+    .empty-title {
+        font-size: 1.5rem;
+        color: #333;
+        margin-bottom: 0.5rem;
+    }
 
-        tr:hover {
-            background: #f8f9fa;
-        }
+    .empty-text {
+        color: #6c757d;
+        margin-bottom: 2rem;
+    }
 
-        .badge {
-            display: inline-block;
-            padding: 0.25rem 0.75rem;
-            border-radius: 12px;
-            font-size: 0.85rem;
-            font-weight: 500;
-        }
+    .btn-primary {
+        display: inline-block;
+        padding: 0.875rem 2rem;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        text-decoration: none;
+        border-radius: 10px;
+        font-weight: 600;
+        transition: all 0.3s;
+    }
 
-        .badge-active {
-            background: #d4edda;
-            color: #155724;
-        }
+    .btn-primary:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+    }
 
-        .pagination {
-            display: flex;
-            justify-content: center;
-            gap: 0.5rem;
-            list-style: none;
-        }
+    .pagination {
+        display: flex;
+        justify-content: center;
+        gap: 0.5rem;
+        padding: 2rem;
+        list-style: none;
+    }
 
-        .pagination a, .pagination span {
-            padding: 0.5rem 1rem;
-            border: 1px solid #dee2e6;
-            border-radius: 5px;
-            text-decoration: none;
-            color: #667eea;
-        }
+    .pagination a,
+    .pagination span {
+        padding: 0.5rem 1rem;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        text-decoration: none;
+        color: #667eea;
+        transition: all 0.3s;
+    }
 
-        .pagination .active span {
-            background: #667eea;
-            color: white;
-        }
+    .pagination a:hover {
+        background: #f8f9fa;
+    }
 
-        .empty-state {
-            text-align: center;
-            padding: 3rem;
-            color: #6c757d;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Historial de Importaciones</h1>
+    .pagination .active span {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-color: #667eea;
+    }
 
-        <div class="actions">
-            <a href="{{ route('grafica') }}" class="btn btn-primary">Ver Gráfica</a>
-            <a href="{{ route('import.form') }}" class="btn btn-secondary">Nueva Importación</a>
-        </div>
+    .pagination .disabled span {
+        color: #adb5bd;
+        cursor: not-allowed;
+    }
+</style>
 
-        @if(session('success'))
-            <div class="alert alert-success">
-                {{ session('success') }}
-            </div>
-        @endif
-
-        @if($importaciones->count() > 0)
+@if($importaciones->count() > 0)
+    <div class="table-card">
+        <div class="table-wrapper">
             <table>
                 <thead>
                     <tr>
@@ -188,35 +171,47 @@
                 <tbody>
                     @foreach($importaciones as $importacion)
                         <tr>
-                            <td>#{{ $importacion->id }}</td>
+                            <td><strong>#{{ $importacion->id }}</strong></td>
                             <td>{{ $importacion->archivo_nombre }}</td>
                             <td>{{ $importacion->fecha_importacion->format('d/m/Y H:i') }}</td>
-                            <td>{{ number_format($importacion->registros_count ?? $importacion->registros->count()) }}</td>
+                            <td>{{ number_format($importacion->registros_count) }}</td>
                             <td>
                                 @if($importacion->id == $importacionActualId)
-                                    <span class="badge badge-active">Activa</span>
+                                    <span class="badge badge-active">✓ Activa</span>
+                                @else
+                                    <span>—</span>
                                 @endif
                             </td>
                             <td>
                                 @if($importacion->id != $importacionActualId)
                                     <form method="POST" action="{{ route('historial.seleccionar', $importacion->id) }}" style="display: inline;">
                                         @csrf
-                                        <button type="submit" class="btn btn-success">Seleccionar</button>
+                                        <button type="submit" class="btn-select">Seleccionar</button>
                                     </form>
+                                @else
+                                    <span style="color: #28a745; font-weight: 600;">En uso</span>
                                 @endif
                             </td>
                         </tr>
                     @endforeach
                 </tbody>
             </table>
+        </div>
 
-            {{ $importaciones->links() }}
-        @else
-            <div class="empty-state">
-                <p>No hay importaciones registradas.</p>
-                <a href="{{ route('import.form') }}" class="btn btn-primary" style="margin-top: 1rem; display: inline-block;">Importar Primer Archivo</a>
+        @if($importaciones->hasPages())
+            <div class="pagination">
+                {{ $importaciones->links() }}
             </div>
         @endif
     </div>
-</body>
-</html>
+@else
+    <div class="table-card">
+        <div class="empty-state">
+            <div class="empty-icon">📭</div>
+            <h2 class="empty-title">No hay importaciones</h2>
+            <p class="empty-text">Aún no has importado ningún archivo Excel. Comienza importando tu primer archivo.</p>
+            <a href="{{ route('import.form') }}" class="btn-primary">📤 Importar Primer Archivo</a>
+        </div>
+    </div>
+@endif
+@endsection

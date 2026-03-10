@@ -11,7 +11,7 @@ Route::post('/logout', [SimpleAuthController::class, 'logout'])->name('simple.lo
 Route::middleware('simple.auth')->group(function () {
     Route::get('/', function () {
         return view('welcome');
-    });
+    })->name('welcome');
 
     Route::get('/import', [ExcelImportController::class, 'showImportForm'])->name('import.form');
     Route::post('/import', [ExcelImportController::class, 'import'])->name('import');

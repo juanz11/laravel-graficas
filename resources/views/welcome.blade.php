@@ -1,155 +1,146 @@
-<!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
-    <head>
-        <meta charset="utf-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1">
+@extends('layouts.admin')
 
-        <title>{{ config('app.name', 'Laravel') }}</title>
+@section('title', 'Inicio - Sistema de Análisis')
 
-        <!-- Fonts -->
-        <link rel="preconnect" href="https://fonts.googleapis.com">
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-        <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+@section('content')
+<div class="page-header">
+    <h1 class="page-title">Bienvenido al Sistema de Análisis de Ventas</h1>
+    <p class="page-description">Gestiona tus datos, visualiza estadísticas y analiza el rendimiento de ventas.</p>
+</div>
 
-        <!-- Styles / Scripts -->
-        @if (file_exists(public_path('build/manifest.json')) || file_exists(public_path('hot')))
-            @vite(['resources/css/app.css', 'resources/js/app.js'])
-        @else
-            <style>
-                * {
-                    margin: 0;
-                    padding: 0;
-                    box-sizing: border-box;
-                    font-family: 'Poppins', sans-serif;
-                }
+<style>
+    .dashboard-cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.5rem;
+        margin-top: 2rem;
+    }
 
-                body {
-                    background: radial-gradient(1200px 800px at 20% 20%, #2e6be6 0%, #0b2a5a 40%, #06162f 100%);
-                    min-height: 100vh;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    position: relative;
-                    padding: 24px;
-                }
+    .card {
+        background: white;
+        padding: 2rem;
+        border-radius: 15px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        transition: all 0.3s;
+        text-decoration: none;
+        color: inherit;
+        display: block;
+    }
 
-                body::before {
-                    content: '';
-                    position: absolute;
-                    inset: 0;
-                    background: rgba(0, 0, 0, 0.45);
-                    z-index: 1;
-                }
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+    }
 
-                .container {
-                    position: relative;
-                    z-index: 2;
-                    background: rgba(255, 255, 255, 0.95);
-                    padding: 2rem;
-                    border-radius: 15px;
-                    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
-                    width: 90%;
-                    max-width: 1000px;
-                    text-align: center;
-                    backdrop-filter: blur(10px);
-                }
+    .card-icon {
+        font-size: 3rem;
+        margin-bottom: 1rem;
+    }
 
-                .logo {
-                    max-width: 200px;
-                    width: 100%;
-                    height: auto;
-                    margin: 0 auto 1.75rem;
-                    display: block;
-                }
+    .card-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 0.5rem;
+    }
 
-                h1 {
-                    color: #0b2a5a;
-                    margin-bottom: 1rem;
-                    font-size: 2rem;
-                    font-weight: 600;
-                }
+    .card-description {
+        color: #6c757d;
+        font-size: 0.95rem;
+        line-height: 1.5;
+    }
 
-                .description {
-                    color: #24405f;
-                    margin-bottom: 2rem;
-                    line-height: 1.6;
-                    font-size: 1.05rem;
-                }
+    .card-primary {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+    }
 
-                .buttons {
-                    display: flex;
-                    gap: 1rem;
-                    justify-content: center;
-                    margin-top: 1.5rem;
-                    flex-wrap: wrap;
-                }
+    .card-primary .card-title,
+    .card-primary .card-description {
+        color: white;
+    }
 
-                .btn {
-                    padding: 0.85rem 2rem;
-                    border-radius: 10px;
-                    font-weight: 500;
-                    text-decoration: none;
-                    transition: all 0.25s ease;
-                    font-size: 1rem;
-                    display: inline-block;
-                }
+    .stats-section {
+        background: white;
+        padding: 2rem;
+        border-radius: 15px;
+        margin-top: 2rem;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+    }
 
-                .btn-primary {
-                    background: #3498db;
-                    color: white;
-                    border: 2px solid #3498db;
-                }
+    .stats-title {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #333;
+        margin-bottom: 1.5rem;
+    }
 
-                .btn-primary:hover {
-                    background: #2980b9;
-                    border-color: #2980b9;
-                    transform: translateY(-2px);
-                }
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1.5rem;
+    }
 
-                .btn-outline {
-                    border: 2px solid #3498db;
-                    color: #3498db;
-                    background: transparent;
-                }
+    .stat-item {
+        text-align: center;
+        padding: 1.5rem;
+        background: #f8f9fa;
+        border-radius: 10px;
+    }
 
-                .btn-outline:hover {
-                    background: #3498db;
-                    color: white;
-                    transform: translateY(-2px);
-                }
+    .stat-value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #667eea;
+        margin-bottom: 0.5rem;
+    }
 
-                @media (max-width: 768px) {
-                    .container {
-                        padding: 1.5rem;
-                    }
+    .stat-label {
+        color: #6c757d;
+        font-size: 0.9rem;
+    }
+</style>
 
-                    .buttons {
-                        flex-direction: column;
-                    }
+<div class="dashboard-cards">
+    <a href="{{ route('import.form') }}" class="card card-primary">
+        <div class="card-icon">📤</div>
+        <h3 class="card-title">Importar Datos</h3>
+        <p class="card-description">Sube tu archivo Excel para procesar y analizar los datos de ventas.</p>
+    </a>
 
-                    .btn {
-                        width: 100%;
-                    }
-                }
-            </style>
-        @endif
-    </head>
-    <body>
-        <div class="container">
-            {{-- Laravel Logo --}}
-            <img src="{{ asset('logo.png') }}" alt="Logo" class="logo">
+    <a href="{{ route('grafica') }}" class="card">
+        <div class="card-icon">📊</div>
+        <h3 class="card-title">Ver Gráficas</h3>
+        <p class="card-description">Visualiza estadísticas y gráficas interactivas de tus datos.</p>
+    </a>
 
-            <h1>Sistema de Datos, Análisis y Estadísticas de Ventas</h1>
+    <a href="{{ route('historial') }}" class="card">
+        <div class="card-icon">📋</div>
+        <h3 class="card-title">Historial</h3>
+        <p class="card-description">Consulta todas las importaciones anteriores y sus registros.</p>
+    </a>
+</div>
 
-            <p class="description">
-                Importa tu archivo y visualiza las ventas con gráficas.
-            </p>
-
-            <div class="buttons">
-                <a href="{{ route('import.form') }}" class="btn btn-primary">Exportar Datos / Visualizar Ventas</a>
-                <a href="{{ route('grafica') }}" class="btn btn-outline">Ir a Gráficas</a>
-                <a href="{{ route('historial') }}" class="btn btn-outline">Ver Historial</a>
-            </div>
+<div class="stats-section">
+    <h2 class="stats-title">Estadísticas Rápidas</h2>
+    <div class="stats-grid">
+        <div class="stat-item">
+            <div class="stat-value">{{ \App\Models\Importacion::count() }}</div>
+            <div class="stat-label">Importaciones Totales</div>
         </div>
-    </body>
-</html>
+        <div class="stat-item">
+            <div class="stat-value">{{ number_format(\App\Models\RegistroExcel::count()) }}</div>
+            <div class="stat-label">Registros Procesados</div>
+        </div>
+        <div class="stat-item">
+            <div class="stat-value">
+                @php
+                    $ultima = \App\Models\Importacion::latest('fecha_importacion')->first();
+                @endphp
+                {{ $ultima ? $ultima->fecha_importacion->diffForHumans() : 'N/A' }}
+            </div>
+            <div class="stat-label">Última Importación</div>
+        </div>
+    </div>
+</div>
+@endsection
