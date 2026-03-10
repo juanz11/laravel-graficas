@@ -148,6 +148,7 @@
             <div class="buttons">
                 <a href="{{ route('import.form') }}" class="btn btn-primary">Exportar Datos / Visualizar Ventas</a>
                 <a href="{{ route('grafica') }}" class="btn btn-outline">Ir a Gráficas</a>
+                <a href="{{ route('historial') }}" class="btn btn-outline">Ver Historial</a>
             </div>
         </div>
     </body>

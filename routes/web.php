@@ -16,4 +16,6 @@ Route::middleware('simple.auth')->group(function () {
     Route::get('/import', [ExcelImportController::class, 'showImportForm'])->name('import.form');
     Route::post('/import', [ExcelImportController::class, 'import'])->name('import');
     Route::get('/grafica', [ExcelImportController::class, 'grafica'])->name('grafica');
+    Route::get('/historial', [ExcelImportController::class, 'historial'])->name('historial');
+    Route::post('/historial/{id}/seleccionar', [ExcelImportController::class, 'seleccionarImportacion'])->name('historial.seleccionar');
 });

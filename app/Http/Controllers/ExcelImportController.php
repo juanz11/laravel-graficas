@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Imports\BaseDatosImport;
+use App\Models\Importacion;
+use App\Models\RegistroExcel;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -184,16 +186,69 @@ class ExcelImportController extends Controller
             'local'
         );
 
-        $request->session()->put('imports.base_datos_path', $path);
+        $diskPath = Storage::disk('local')->path($path);
+        $sheetKey = $this->pickBaseDatosSheetKey($diskPath);
 
-        return redirect()->route('grafica');
+        try {
+            $import = new BaseDatosImport($sheetKey);
+            Excel::import($import, $diskPath);
+            $rows = $import->sheet->rows;
+        } catch (\Exception $e) {
+            return redirect()->route('import')->withErrors(['excel' => 'Error al procesar el archivo: ' . $e->getMessage()]);
+        }
+
+        $rowsNormalized = $rows->map(fn ($r) => $this->rowToArray($r));
+
+        if (
+            $rowsNormalized->isEmpty()
+            || ($rowsNormalized->isNotEmpty() && !array_key_exists('cliente', $rowsNormalized->first()))
+        ) {
+            $rowsNormalized = $this->readBaseDatosRowsFallback($diskPath, $sheetKey);
+        }
+
+        $importacion = Importacion::create([
+            'archivo_nombre' => $file->getClientOriginalName(),
+            'archivo_path' => $path,
+            'fecha_importacion' => now(),
+        ]);
+
+        foreach ($rowsNormalized as $row) {
+            $rowArr = $this->rowToArray($row);
+            
+            $unitsRaw = $rowArr['unidades'] ?? 0;
+            $units = (float) str_replace([',', ' '], ['', ''], (string) $unitsRaw);
+
+            RegistroExcel::create([
+                'importacion_id' => $importacion->id,
+                'codigo' => $rowArr['codigo'] ?? null,
+                'productos' => $rowArr['productos'] ?? null,
+                'clase_terapeutica' => $rowArr['clase_terapeutica'] ?? null,
+                'cliente' => $rowArr['cliente'] ?? null,
+                'clase' => $rowArr['clase'] ?? null,
+                'mes' => isset($rowArr['mes']) ? (int) $rowArr['mes'] : null,
+                'ano' => isset($rowArr['ano']) ? (int) $rowArr['ano'] : null,
+                'unidades' => $units,
+            ]);
+        }
+
+        $request->session()->put('imports.base_datos_importacion_id', $importacion->id);
+
+        return redirect()->route('grafica')->with('success', 'Archivo importado y guardado correctamente.');
     }
 
     public function grafica(Request $request): View
     {
-        $path = $request->session()->get('imports.base_datos_path');
+        $importacionId = $request->session()->get('imports.base_datos_importacion_id');
 
-        if (!$path) {
+        if (!$importacionId) {
+            $ultimaImportacion = Importacion::latest('fecha_importacion')->first();
+            if ($ultimaImportacion) {
+                $importacionId = $ultimaImportacion->id;
+                $request->session()->put('imports.base_datos_importacion_id', $importacionId);
+            }
+        }
+
+        if (!$importacionId) {
             return view('grafica', [
                 'labels' => [],
                 'percentages' => [],
@@ -207,11 +262,8 @@ class ExcelImportController extends Controller
             ]);
         }
 
-        $diskPath = Storage::disk('local')->path($path);
-
-        if (!File::exists($diskPath)) {
-            $request->session()->forget('imports.base_datos_path');
-
+        $importacion = Importacion::find($importacionId);
+        if (!$importacion) {
             return view('grafica', [
                 'labels' => [],
                 'percentages' => [],
@@ -221,7 +273,7 @@ class ExcelImportController extends Controller
                 'selectedMonths' => [],
                 'availableYears' => [],
                 'availableMonths' => [],
-                'error' => 'No se encontró el archivo importado. Vuelve a importar el Excel.',
+                'error' => 'No se encontró la importación.',
             ]);
         }
 
@@ -231,89 +283,44 @@ class ExcelImportController extends Controller
             $selectedMonths = [$selectedMonths];
         }
 
-        $sheetKey = $this->pickBaseDatosSheetKey($diskPath);
+        $query = RegistroExcel::where('importacion_id', $importacionId);
 
-        try {
-            $import = new BaseDatosImport($sheetKey);
-            Excel::import($import, $diskPath);
-            $rows = $import->sheet->rows;
-        } catch (SheetNotFoundException $e) {
-            $names = $this->listSheetNames($diskPath);
-
-            return view('grafica', [
-                'labels' => [],
-                'percentages' => [],
-                'unitsByLabel' => [],
-                'totalUnits' => 0,
-                'selectedYear' => null,
-                'selectedMonths' => [],
-                'availableYears' => [],
-                'availableMonths' => [],
-                'error' => 'No se encontró la hoja "Base de datos". Hojas disponibles: ' . implode(', ', $names),
-            ]);
+        if ($selectedYear !== null) {
+            $query->where('ano', $selectedYear);
         }
 
-        $rowsNormalized = $rows->map(fn ($r) => $this->rowToArray($r));
+        if ($selectedMonths !== []) {
+            $query->whereIn('mes', array_map('intval', $selectedMonths));
+        }
 
-        $availableYears = $rowsNormalized
+        $registros = $query->get();
+
+        $availableYears = RegistroExcel::where('importacion_id', $importacionId)
+            ->whereNotNull('ano')
+            ->distinct()
             ->pluck('ano')
-            ->filter(fn ($v) => $v !== null && $v !== '')
-            ->map(fn ($v) => (int) $v)
-            ->unique()
             ->sort()
             ->values()
             ->all();
 
-        $availableMonths = $rowsNormalized
+        $availableMonths = RegistroExcel::where('importacion_id', $importacionId)
+            ->whereNotNull('mes')
+            ->distinct()
             ->pluck('mes')
-            ->filter(fn ($v) => $v !== null && $v !== '')
-            ->map(fn ($v) => (int) $v)
-            ->unique()
             ->sort()
             ->values()
             ->all();
-
-        if (
-            $rowsNormalized->isEmpty()
-            || ($rowsNormalized->isNotEmpty() && !array_key_exists('cliente', $rowsNormalized->first()))
-        ) {
-            $rowsNormalized = $this->readBaseDatosRowsFallback($diskPath, $sheetKey);
-        }
-
-        $filtered = $rowsNormalized->filter(function ($row) use ($selectedYear, $selectedMonths): bool {
-            $rowArr = $this->rowToArray($row);
-            $year = $rowArr['ano'] ?? null;
-            $month = $rowArr['mes'] ?? null;
-
-            if ($selectedYear !== null && (int) $year !== $selectedYear) {
-                return false;
-            }
-
-            if ($selectedMonths !== [] && $month !== null) {
-                $monthInt = (int) $month;
-                $selected = array_map('intval', $selectedMonths);
-                if (!in_array($monthInt, $selected, true)) {
-                    return false;
-                }
-            }
-
-            return true;
-        });
 
         $unitsByLabel = [];
         $totalUnits = 0.0;
 
-        foreach ($filtered as $row) {
-            $rowArr = $this->rowToArray($row);
-
-            $label = trim((string) ($rowArr['cliente'] ?? ''));
+        foreach ($registros as $registro) {
+            $label = trim($registro->cliente ?? '');
             if ($label === '') {
                 $label = 'SIN_CLIENTE';
             }
 
-            $unitsRaw = $rowArr['unidades'] ?? 0;
-            $units = (float) str_replace([',', ' '], ['', ''], (string) $unitsRaw);
-
+            $units = (float) $registro->unidades;
             $unitsByLabel[$label] = ($unitsByLabel[$label] ?? 0) + $units;
             $totalUnits += $units;
         }
@@ -339,5 +346,28 @@ class ExcelImportController extends Controller
             'availableMonths' => $availableMonths,
             'error' => null,
         ]);
+    }
+
+    public function historial(Request $request): View
+    {
+        $importaciones = Importacion::withCount('registros')
+            ->latest('fecha_importacion')
+            ->paginate(10);
+
+        $importacionActualId = $request->session()->get('imports.base_datos_importacion_id');
+
+        return view('historial', [
+            'importaciones' => $importaciones,
+            'importacionActualId' => $importacionActualId,
+        ]);
+    }
+
+    public function seleccionarImportacion(Request $request, int $id): RedirectResponse
+    {
+        $importacion = Importacion::findOrFail($id);
+        
+        $request->session()->put('imports.base_datos_importacion_id', $importacion->id);
+
+        return redirect()->route('grafica')->with('success', 'Importación seleccionada correctamente.');
     }
 }
