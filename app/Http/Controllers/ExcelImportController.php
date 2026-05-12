@@ -351,13 +351,22 @@ class ExcelImportController extends Controller
             ->pluck('productos')
             ->all();
 
+        $vista = $request->input('vista', 'cliente');
         $unitsByLabel = [];
         $totalUnits = 0.0;
 
         foreach ($registros as $registro) {
-            $label = trim($registro->cliente ?? '');
-            if ($label === '') {
-                $label = 'SIN_CLIENTE';
+            if ($vista === 'producto') {
+                $label = trim($registro->productos ?? '');
+                if ($label === '') {
+                    $label = 'SIN_PRODUCTO';
+                }
+            } else {
+                // Vista por cliente (por defecto)
+                $label = trim($registro->cliente ?? '');
+                if ($label === '') {
+                    $label = 'SIN_CLIENTE';
+                }
             }
 
             $units = (float) $registro->unidades;
@@ -380,6 +389,7 @@ class ExcelImportController extends Controller
             'percentages' => $percentages,
             'unitsByLabel' => $unitsByLabel,
             'totalUnits' => $totalUnits,
+            'vista' => $vista,
             'selectedYear' => $selectedYear,
             'selectedMonths' => array_map('intval', $selectedMonths),
             'selectedClientes' => $selectedClientes,

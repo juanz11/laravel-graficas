@@ -359,7 +359,7 @@
         </div>
         <div class="stat-box">
             <div class="stat-value">{{ count($labels) }}</div>
-            <div class="stat-label">Clientes</div>
+            <div class="stat-label">{{ $vista === 'producto' ? 'Productos' : 'Clientes' }}</div>
         </div>
         <div class="stat-box">
             <div class="stat-value">{{ $selectedYear ?? 'Todos' }}</div>
@@ -524,6 +524,18 @@
     <!-- Controles de tipo de gráfica -->
     <div class="chart-controls">
         <div style="margin-bottom: 1rem;">
+            <strong>Vista de Datos:</strong>
+        </div>
+        <div class="chart-type-buttons" style="margin-bottom: 1.5rem;">
+            <button class="btn-chart-type {{ $vista === 'cliente' ? 'active' : '' }}" onclick="changeView('cliente')" data-vista="cliente">
+                👥 Por Cliente
+            </button>
+            <button class="btn-chart-type {{ $vista === 'producto' ? 'active' : '' }}" onclick="changeView('producto')" data-vista="producto">
+                📦 Por Producto
+            </button>
+        </div>
+
+        <div style="margin-bottom: 1rem;">
             <strong>Tipo de Gráfica:</strong>
         </div>
         <div class="chart-type-buttons">
@@ -552,13 +564,14 @@
     <div class="chart-card">
         <h2 class="chart-title">
             <span id="chartTitleIcon">🍩</span>
-            <span id="chartTitleText">Distribución por Cliente</span>
+            <span id="chartTitleText">{{ $vista === 'producto' ? 'Distribución por Producto' : 'Distribución por Cliente' }}</span>
         </h2>
         <div class="chart-container">
             <canvas id="mainChart"></canvas>
         </div>
         <div class="export-buttons">
             <button class="btn-export" onclick="downloadChart()">💾 Descargar Gráfica</button>
+            <button class="btn-export" onclick="exportToExcel()">📊 Exportar Datos</button>
         </div>
     </div>
 
@@ -569,7 +582,7 @@
                 <thead>
                     <tr>
                         <th>#</th>
-                        <th>Cliente</th>
+                        <th>{{ $vista === 'producto' ? 'Producto' : 'Cliente' }}</th>
                         <th>Unidades</th>
                         <th>Porcentaje</th>
                     </tr>
@@ -676,6 +689,15 @@
         currentChart = new Chart(ctx, config);
     }
 
+    function changeView(vista) {
+        // Obtener parámetros actuales de la URL
+        const urlParams = new URLSearchParams(window.location.search);
+        urlParams.set('vista', vista);
+        
+        // Recargar la página con la nueva vista
+        window.location.href = window.location.pathname + '?' + urlParams.toString();
+    }
+
     function changeChartType(type) {
         currentType = type;
         
@@ -685,14 +707,18 @@
         });
         document.querySelector(`[data-type="${type}"]`).classList.add('active');
 
+        // Determinar si es vista por cliente o producto
+        const currentVista = '{{ $vista }}';
+        const vistaText = currentVista === 'producto' ? 'Producto' : 'Cliente';
+        
         // Actualizar título
         const titles = {
-            'doughnut': { icon: '🍩', text: 'Distribución por Cliente (Dona)' },
-            'pie': { icon: '🥧', text: 'Distribución por Cliente (Pastel)' },
-            'bar': { icon: '📊', text: 'Comparación por Cliente (Barras)' },
-            'horizontalBar': { icon: '📈', text: 'Comparación por Cliente (Barras Horizontales)' },
-            'line': { icon: '📉', text: 'Tendencia por Cliente (Líneas)' },
-            'polarArea': { icon: '🎯', text: 'Distribución por Cliente (Área Polar)' }
+            'doughnut': { icon: '🍩', text: `Distribución por ${vistaText} (Dona)` },
+            'pie': { icon: '🥧', text: `Distribución por ${vistaText} (Pastel)` },
+            'bar': { icon: '📊', text: `Comparación por ${vistaText} (Barras)` },
+            'horizontalBar': { icon: '📈', text: `Comparación por ${vistaText} (Barras Horizontales)` },
+            'line': { icon: '📉', text: `Tendencia por ${vistaText} (Líneas)` },
+            'polarArea': { icon: '🎯', text: `Distribución por ${vistaText} (Área Polar)` }
         };
 
         document.getElementById('chartTitleIcon').textContent = titles[type].icon;
@@ -707,6 +733,45 @@
         link.download = `grafica-${currentType}-${Date.now()}.png`;
         link.href = currentChart.toBase64Image();
         link.click();
+    }
+
+    function exportToExcel() {
+        // Obtener los datos de la tabla
+        const table = document.querySelector('table');
+        const rows = table.querySelectorAll('tr');
+        
+        let csv = [];
+        
+        // Encabezados
+        const headers = [];
+        rows[0].querySelectorAll('th').forEach(th => {
+            headers.push(th.textContent.trim());
+        });
+        csv.push(headers.join(','));
+        
+        // Datos
+        for (let i = 1; i < rows.length; i++) {
+            const rowData = [];
+            rows[i].querySelectorAll('td').forEach(td => {
+                rowData.push(td.textContent.trim());
+            });
+            csv.push(rowData.join(','));
+        }
+        
+        // Crear blob y descargar
+        const csvContent = csv.join('\n');
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+        const link = document.createElement('a');
+        
+        const vistaText = '{{ $vista === "producto" ? "productos" : "clientes" }}';
+        const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
+        
+        link.href = URL.createObjectURL(blob);
+        link.download = `export-${vistaText}-${timestamp}.csv`;
+        link.click();
+        
+        // Liberar URL
+        setTimeout(() => URL.revokeObjectURL(link.href), 100);
     }
 
     // Inicializar gráfica
