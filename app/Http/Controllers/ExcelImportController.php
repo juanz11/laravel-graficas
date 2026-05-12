@@ -197,14 +197,7 @@ class ExcelImportController extends Controller
             return redirect()->route('import')->withErrors(['excel' => 'Error al procesar el archivo: ' . $e->getMessage()]);
         }
 
-        $rowsNormalized = $rows->map(fn ($r) => $this->rowToArray($r));
-
-        if (
-            $rowsNormalized->isEmpty()
-            || ($rowsNormalized->isNotEmpty() && !array_key_exists('cliente', $rowsNormalized->first()))
-        ) {
-            $rowsNormalized = $this->readBaseDatosRowsFallback($diskPath, $sheetKey);
-        }
+        $rowsNormalized = $rows; // Ya vienen mapeadas desde BaseDatosSheetImport
 
         $importacion = Importacion::create([
             'archivo_nombre' => $file->getClientOriginalName(),
@@ -213,21 +206,21 @@ class ExcelImportController extends Controller
         ]);
 
         foreach ($rowsNormalized as $row) {
-            $rowArr = $this->rowToArray($row);
-            
+            $rowArr = is_array($row) ? $row : (method_exists($row, 'toArray') ? $row->toArray() : (array)$row);
+
             $unitsRaw = $rowArr['unidades'] ?? 0;
             $units = (float) str_replace([',', ' '], ['', ''], (string) $unitsRaw);
 
             RegistroExcel::create([
-                'importacion_id' => $importacion->id,
-                'codigo' => $rowArr['codigo'] ?? null,
-                'productos' => $rowArr['productos'] ?? null,
+                'importacion_id'    => $importacion->id,
+                'codigo'            => $rowArr['codigo'] ?? null,
+                'productos'         => $rowArr['productos'] ?? null,
                 'clase_terapeutica' => $rowArr['clase_terapeutica'] ?? null,
-                'cliente' => $rowArr['cliente'] ?? null,
-                'clase' => $rowArr['clase'] ?? null,
-                'mes' => isset($rowArr['mes']) ? (int) $rowArr['mes'] : null,
-                'ano' => isset($rowArr['ano']) ? (int) $rowArr['ano'] : null,
-                'unidades' => $units,
+                'cliente'           => $rowArr['cliente'] ?? null,
+                'clase'             => $rowArr['clase'] ?? null,
+                'mes'               => isset($rowArr['mes']) ? (int) $rowArr['mes'] : null,
+                'ano'               => isset($rowArr['ano']) ? (int) $rowArr['ano'] : null,
+                'unidades'          => $units,
             ]);
         }
 
@@ -282,6 +275,10 @@ class ExcelImportController extends Controller
         if (!is_array($selectedMonths)) {
             $selectedMonths = [$selectedMonths];
         }
+        $selectedProductos = $request->input('producto', []);
+        if (!is_array($selectedProductos)) {
+            $selectedProductos = [$selectedProductos];
+        }
 
         $query = RegistroExcel::where('importacion_id', $importacionId);
 
@@ -291,6 +288,10 @@ class ExcelImportController extends Controller
 
         if ($selectedMonths !== []) {
             $query->whereIn('mes', array_map('intval', $selectedMonths));
+        }
+
+        if ($selectedProductos !== []) {
+            $query->whereIn('productos', $selectedProductos);
         }
 
         $registros = $query->get();
@@ -309,6 +310,13 @@ class ExcelImportController extends Controller
             ->pluck('mes')
             ->sort()
             ->values()
+            ->all();
+
+        $availableProductos = RegistroExcel::where('importacion_id', $importacionId)
+            ->whereNotNull('productos')
+            ->distinct()
+            ->orderBy('productos')
+            ->pluck('productos')
             ->all();
 
         $unitsByLabel = [];
@@ -342,9 +350,82 @@ class ExcelImportController extends Controller
             'totalUnits' => $totalUnits,
             'selectedYear' => $selectedYear,
             'selectedMonths' => array_map('intval', $selectedMonths),
+            'selectedProductos' => $selectedProductos,
             'availableYears' => $availableYears,
             'availableMonths' => $availableMonths,
+            'availableProductos' => $availableProductos,
             'error' => null,
+        ]);
+    }
+
+    public function reprocesar(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $importaciones = Importacion::all();
+        $total = 0;
+
+        foreach ($importaciones as $importacion) {
+            $diskPath = Storage::disk('local')->path($importacion->archivo_path);
+
+            if (!\Illuminate\Support\Facades\File::exists($diskPath)) {
+                continue;
+            }
+
+            $sheetKey = $this->pickBaseDatosSheetKey($diskPath);
+            $import = new BaseDatosImport($sheetKey);
+            Excel::import($import, $diskPath);
+            $rows = $import->sheet->rows;
+
+            // Obtener registros de esta importación ordenados por id
+            $registros = \App\Models\RegistroExcel::where('importacion_id', $importacion->id)
+                ->orderBy('id')
+                ->get();
+
+            foreach ($rows as $i => $row) {
+                $rowArr = is_array($row) ? $row : $row->toArray();
+
+                if (!isset($registros[$i])) continue;
+
+                $registros[$i]->update([
+                    'codigo'            => $rowArr['codigo'] ?? null,
+                    'productos'         => $rowArr['productos'] ?? null,
+                    'clase_terapeutica' => $rowArr['clase_terapeutica'] ?? null,
+                    'clase'             => $rowArr['clase'] ?? null,
+                ]);
+                $total++;
+            }
+        }
+
+        return response()->json([
+            'ok' => true,
+            'registros_actualizados' => $total,
+            'muestra_productos' => \App\Models\RegistroExcel::whereNotNull('productos')->distinct()->limit(5)->pluck('productos'),
+        ]);
+    }
+
+    public function debugKeys(Request $request): \Illuminate\Http\JsonResponse
+    {
+        $importacion = Importacion::latest('fecha_importacion')->first();
+        if (!$importacion) {
+            return response()->json(['error' => 'No hay importaciones']);
+        }
+
+        $diskPath = Storage::disk('local')->path($importacion->archivo_path);
+        $sheetKey = $this->pickBaseDatosSheetKey($diskPath);
+
+        $import = new BaseDatosImport($sheetKey);
+        Excel::import($import, $diskPath);
+        $rows = $import->sheet->rows;
+
+        $firstRow = $rows->first();
+        $keys = $firstRow ? array_keys(is_array($firstRow) ? $firstRow : $firstRow->toArray()) : [];
+
+        return response()->json([
+            'total_registros_bd'       => \App\Models\RegistroExcel::count(),
+            'registros_con_productos'  => \App\Models\RegistroExcel::whereNotNull('productos')->count(),
+            'registros_sin_productos'  => \App\Models\RegistroExcel::whereNull('productos')->count(),
+            'sample_row_keys'          => $keys,
+            'sample_row_values'        => $firstRow,
+            'importacion_activa_id'    => $importacion->id,
         ]);
     }
 

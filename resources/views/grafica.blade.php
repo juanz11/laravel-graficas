@@ -221,6 +221,122 @@
         background: #667eea;
         color: white;
     }
+
+    /* Selector de productos */
+    .producto-selector {
+        position: relative;
+    }
+
+    .producto-search-wrap {
+        display: flex;
+        align-items: center;
+        border: 2px solid #e9ecef;
+        border-radius: 8px;
+        overflow: hidden;
+        transition: border-color 0.3s;
+    }
+
+    .producto-search-wrap:focus-within {
+        border-color: #667eea;
+    }
+
+    .producto-search-input {
+        flex: 1;
+        padding: 0.75rem 1rem;
+        border: none;
+        outline: none;
+        font-size: 0.95rem;
+    }
+
+    .producto-count {
+        padding: 0 1rem;
+        color: #667eea;
+        font-weight: 600;
+        font-size: 0.85rem;
+        white-space: nowrap;
+        background: #f0f2ff;
+        height: 100%;
+        display: flex;
+        align-items: center;
+    }
+
+    .producto-dropdown {
+        display: none;
+        position: absolute;
+        top: calc(100% + 4px);
+        left: 0;
+        right: 0;
+        background: white;
+        border: 2px solid #667eea;
+        border-radius: 8px;
+        z-index: 999;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    }
+
+    .producto-dropdown.open {
+        display: block;
+    }
+
+    .producto-dropdown-actions {
+        display: flex;
+        gap: 0.5rem;
+        padding: 0.75rem;
+        border-bottom: 1px solid #e9ecef;
+    }
+
+    .producto-dropdown-actions button {
+        padding: 0.35rem 0.85rem;
+        border-radius: 6px;
+        border: 1px solid #667eea;
+        background: white;
+        color: #667eea;
+        font-size: 0.85rem;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .producto-dropdown-actions button:hover {
+        background: #667eea;
+        color: white;
+    }
+
+    .producto-list {
+        max-height: 220px;
+        overflow-y: auto;
+        padding: 0.5rem 0;
+    }
+
+    .producto-item {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.6rem 1rem;
+        cursor: pointer;
+        transition: background 0.15s;
+        font-size: 0.9rem;
+        color: #333;
+    }
+
+    .producto-item:hover {
+        background: #f0f2ff;
+    }
+
+    .producto-item.selected {
+        background: #eef0ff;
+        color: #667eea;
+        font-weight: 500;
+    }
+
+    .producto-item input[type=checkbox] {
+        accent-color: #667eea;
+        width: 16px;
+        height: 16px;
+        cursor: pointer;
+    }
+
+    .producto-item.hidden {
+        display: none;
+    }
 </style>
 @endpush
 
@@ -253,6 +369,10 @@
             <div class="stat-value">{{ count($selectedMonths) > 0 ? count($selectedMonths) : 'Todos' }}</div>
             <div class="stat-label">Meses Filtrados</div>
         </div>
+        <div class="stat-box">
+            <div class="stat-value">{{ count($selectedProductos) > 0 ? count($selectedProductos) : 'Todos' }}</div>
+            <div class="stat-label">Productos Filtrados</div>
+        </div>
     </div>
 
     <!-- Filtros -->
@@ -278,6 +398,41 @@
                             </option>
                         @endforeach
                     </select>
+                </div>
+
+                <div class="form-group" style="grid-column: 1 / -1;">
+                    <label class="form-label">Productos</label>
+
+                    <!-- Inputs hidden para enviar los seleccionados -->
+                    <div id="productoHiddenInputs">
+                        @foreach($selectedProductos as $sp)
+                            <input type="hidden" name="producto[]" value="{{ $sp }}">
+                        @endforeach
+                    </div>
+
+                    <!-- Selector con búsqueda -->
+                    <div class="producto-selector">
+                        <div class="producto-search-wrap">
+                            <input type="text" id="productoSearch" placeholder="🔍 Buscar producto..." class="producto-search-input" autocomplete="off">
+                            <span id="productoCount" class="producto-count">
+                                {{ count($selectedProductos) > 0 ? count($selectedProductos) . ' seleccionado(s)' : 'Todos' }}
+                            </span>
+                        </div>
+                        <div class="producto-dropdown" id="productoDropdown">
+                            <div class="producto-dropdown-actions">
+                                <button type="button" onclick="selectAllProductos()">Seleccionar todos</button>
+                                <button type="button" onclick="clearProductos()">Limpiar</button>
+                            </div>
+                            <div class="producto-list" id="productoList">
+                                @foreach ($availableProductos as $p)
+                                    <label class="producto-item {{ in_array($p, $selectedProductos) ? 'selected' : '' }}" data-value="{{ $p }}">
+                                        <input type="checkbox" value="{{ $p }}" {{ in_array($p, $selectedProductos) ? 'checked' : '' }} onchange="toggleProducto(this)">
+                                        <span>{{ $p }}</span>
+                                    </label>
+                                @endforeach
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -478,5 +633,61 @@
 
     // Inicializar gráfica
     createChart('doughnut');
+
+    // Selector de productos
+    const searchInput = document.getElementById('productoSearch');
+    const dropdown = document.getElementById('productoDropdown');
+
+    searchInput.addEventListener('focus', () => dropdown.classList.add('open'));
+
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.producto-selector')) {
+            dropdown.classList.remove('open');
+        }
+    });
+
+    searchInput.addEventListener('input', function () {
+        const q = this.value.toLowerCase();
+        document.querySelectorAll('.producto-item').forEach(item => {
+            const text = item.querySelector('span').textContent.toLowerCase();
+            item.classList.toggle('hidden', !text.includes(q));
+        });
+    });
+
+    function toggleProducto(checkbox) {
+        const item = checkbox.closest('.producto-item');
+        item.classList.toggle('selected', checkbox.checked);
+        syncHiddenInputs();
+    }
+
+    function syncHiddenInputs() {
+        const container = document.getElementById('productoHiddenInputs');
+        container.innerHTML = '';
+        document.querySelectorAll('.producto-item input:checked').forEach(cb => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'producto[]';
+            input.value = cb.value;
+            container.appendChild(input);
+        });
+        const count = container.querySelectorAll('input').length;
+        document.getElementById('productoCount').textContent = count > 0 ? count + ' seleccionado(s)' : 'Todos';
+    }
+
+    function selectAllProductos() {
+        document.querySelectorAll('.producto-item:not(.hidden) input').forEach(cb => {
+            cb.checked = true;
+            cb.closest('.producto-item').classList.add('selected');
+        });
+        syncHiddenInputs();
+    }
+
+    function clearProductos() {
+        document.querySelectorAll('.producto-item input').forEach(cb => {
+            cb.checked = false;
+            cb.closest('.producto-item').classList.remove('selected');
+        });
+        syncHiddenInputs();
+    }
 </script>
 @endpush

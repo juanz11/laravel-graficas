@@ -18,4 +18,6 @@ Route::middleware('simple.auth')->group(function () {
     Route::get('/grafica', [ExcelImportController::class, 'grafica'])->name('grafica');
     Route::get('/historial', [ExcelImportController::class, 'historial'])->name('historial');
     Route::post('/historial/{id}/seleccionar', [ExcelImportController::class, 'seleccionarImportacion'])->name('historial.seleccionar');
+    Route::get('/debug-keys', [ExcelImportController::class, 'debugKeys'])->name('debug.keys');
+    Route::get('/reprocesar', [ExcelImportController::class, 'reprocesar'])->name('reprocesar');
 });
