@@ -557,6 +557,9 @@
             <button class="btn-chart-type" onclick="changeChartType('polarArea')" data-type="polarArea">
                 🎯 Área Polar
             </button>
+            <button class="btn-chart-type" onclick="changeChartType('3d')" data-type="3d">
+                🌐 Gráfica 3D
+            </button>
         </div>
     </div>
 
@@ -568,6 +571,7 @@
         </h2>
         <div class="chart-container">
             <canvas id="mainChart"></canvas>
+            <div id="plotlyChart" style="width:100%;height:400px;display:none;"></div>
         </div>
         <div class="export-buttons">
             <button class="btn-export" onclick="downloadChart()">💾 Descargar Gráfica</button>
@@ -610,6 +614,7 @@
 
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 <script>
     const labels = @json($labels);
     const data = @json($percentages);
@@ -627,66 +632,90 @@
     let currentType = 'doughnut';
 
     function createChart(type) {
-        const ctx = document.getElementById('mainChart').getContext('2d');
+        // Mostrar canvas y ocultar div de Plotly
+        const canvas = document.getElementById('mainChart');
+        const plotlyDiv = document.getElementById('plotlyChart');
         
-        if (currentChart) {
-            currentChart.destroy();
+        if (canvas) {
+            canvas.style.display = 'block';
         }
+        if (plotlyDiv) {
+            plotlyDiv.style.display = 'none';
+            // Limpiar Plotly para liberar memoria
+            Plotly.purge(plotlyDiv);
+        }
+        
+        // Esperar un frame para que el canvas sea visible antes de obtener contexto
+        setTimeout(() => {
+            const ctx = canvas ? canvas.getContext('2d') : null;
+            
+            if (currentChart && currentChart !== null) {
+                currentChart.destroy();
+            }
 
-        const isHorizontal = type === 'horizontalBar';
-        const actualType = isHorizontal ? 'bar' : type;
+            // Generar colores dinámicos
+            const chartColors = labels.map((_, i) => {
+                const hue = (i * 137.5) % 360;
+                return `hsl(${hue}, 70%, 60%)`;
+            });
 
-        const config = {
-            type: actualType,
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: 'Porcentaje (%)',
-                    data: data,
-                    backgroundColor: colors,
-                    borderColor: borderColors,
-                    borderWidth: 2,
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                indexAxis: isHorizontal ? 'y' : 'x',
-                plugins: {
-                    legend: {
-                        position: type === 'doughnut' || type === 'pie' ? 'right' : 'top',
-                        labels: {
-                            padding: 15,
-                            font: {
-                                size: 12
+            const chartBorderColors = chartColors.map(c => c.replace('60%', '50%'));
+
+            const isHorizontal = type === 'horizontalBar';
+            const actualType = isHorizontal ? 'bar' : type;
+
+            const config = {
+                type: actualType,
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Porcentaje (%)',
+                        data: data,
+                        backgroundColor: chartColors,
+                        borderColor: chartBorderColors,
+                        borderWidth: 2,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: isHorizontal ? 'y' : 'x',
+                    plugins: {
+                        legend: {
+                            position: type === 'doughnut' || type === 'pie' ? 'right' : 'top',
+                            labels: {
+                                padding: 15,
+                                font: {
+                                    size: 12
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const label = context.label || '';
+                                    const value = context.parsed.y || context.parsed || 0;
+                                    const unitValue = units[context.dataIndex] || 0;
+                                    return `${label}: ${value.toFixed(2)}% (${unitValue.toLocaleString()} unidades)`;
+                                }
                             }
                         }
                     },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                const label = context.label || '';
-                                const value = context.parsed.y || context.parsed || 0;
-                                const unitValue = units[context.dataIndex] || 0;
-                                return `${label}: ${value.toFixed(2)}% (${unitValue.toLocaleString()} unidades)`;
+                    scales: type === 'bar' || type === 'line' || isHorizontal ? {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return value + '%';
+                                }
                             }
                         }
-                    }
-                },
-                scales: type === 'bar' || type === 'line' || isHorizontal ? {
-                    y: {
-                        beginAtZero: true,
-                        ticks: {
-                            callback: function(value) {
-                                return value + '%';
-                            }
-                        }
-                    }
-                } : {}
-            }
-        };
+                    } : {}
+                }
+            };
 
-        currentChart = new Chart(ctx, config);
+            currentChart = new Chart(ctx, config);
+        }, 100);
     }
 
     function changeView(vista) {
@@ -718,21 +747,131 @@
             'bar': { icon: '📊', text: `Comparación por ${vistaText} (Barras)` },
             'horizontalBar': { icon: '📈', text: `Comparación por ${vistaText} (Barras Horizontales)` },
             'line': { icon: '📉', text: `Tendencia por ${vistaText} (Líneas)` },
-            'polarArea': { icon: '🎯', text: `Distribución por ${vistaText} (Área Polar)` }
+            'polarArea': { icon: '🎯', text: `Distribución por ${vistaText} (Área Polar)` },
+            '3d': { icon: '🌐', text: `Distribución 3D por ${vistaText}` }
         };
 
         document.getElementById('chartTitleIcon').textContent = titles[type].icon;
         document.getElementById('chartTitleText').textContent = titles[type].text;
 
         // Crear nueva gráfica
-        createChart(type);
+        if (type === '3d') {
+            create3DChart();
+        } else {
+            createChart(type);
+        }
+    }
+
+    function create3DChart() {
+        // Ocultar canvas de Chart.js y mostrar div de Plotly
+        const canvas = document.getElementById('mainChart');
+        const plotlyDiv = document.getElementById('plotlyChart');
+        
+        if (canvas) canvas.style.display = 'none';
+        if (plotlyDiv) {
+            plotlyDiv.style.display = 'block';
+        } else {
+            // Crear div de Plotly si no existe
+            const container = canvas.parentElement;
+            const newDiv = document.createElement('div');
+            newDiv.id = 'plotlyChart';
+            newDiv.style.cssText = 'width:100%;height:400px;display:block;';
+            container.appendChild(newDiv);
+        }
+        
+        // Preparar datos para Plotly 3D
+        const trace = {
+            x: labels,
+            y: labels.map((_, i) => i), // Posición Y para separación visual
+            z: units, // Valores de unidades como altura Z
+            type: 'scatter3d',
+            mode: 'markers+lines',
+            marker: {
+                size: 12,
+                color: units,
+                colorscale: 'Viridis',
+                showscale: true,
+                colorbar: {
+                    title: 'Unidades',
+                    thickness: 20
+                }
+            },
+            line: {
+                color: 'rgba(125, 125, 125, 0.3)',
+                width: 2
+            },
+            text: labels.map((label, i) => `${label}: ${units[i].toLocaleString()} unidades (${data[i].toFixed(2)}%)`),
+            hovertemplate: '<b>%{text}</b><extra></extra>'
+        };
+        
+        const layout = {
+            title: '',
+            scene: {
+                xaxis: {
+                    title: '{{ $vista === "producto" ? "Productos" : "Clientes" }}',
+                    tickangle: -45
+                },
+                yaxis: {
+                    title: 'Índice',
+                    showticklabels: false
+                },
+                zaxis: {
+                    title: 'Unidades'
+                },
+                camera: {
+                    eye: {
+                        x: 1.5,
+                        y: 1.5,
+                        z: 1.5
+                    }
+                }
+            },
+            margin: {
+                l: 0,
+                r: 0,
+                b: 0,
+                t: 0
+            },
+            paper_bgcolor: 'rgba(0,0,0,0)',
+            plot_bgcolor: 'rgba(0,0,0,0)'
+        };
+        
+        const config = {
+            responsive: true,
+            displayModeBar: true,
+            displaylogo: false,
+            modeBarButtonsToRemove: ['pan2d', 'select2d', 'lasso2d', 'resetScale2d'],
+            toImageButtonOptions: {
+                format: 'png',
+                filename: `grafica-3d-{{ $vista }}-${Date.now()}`,
+                height: 800,
+                width: 1200,
+                scale: 2
+            }
+        };
+        
+        Plotly.newPlot('plotlyChart', [trace], layout, config);
+        
+        // Guardar referencia para descarga
+        currentChart = null; // Plotly maneja su propia descarga
     }
 
     function downloadChart() {
-        const link = document.createElement('a');
-        link.download = `grafica-${currentType}-${Date.now()}.png`;
-        link.href = currentChart.toBase64Image();
-        link.click();
+        if (currentType === '3d') {
+            // Descargar con Plotly
+            Plotly.downloadImage('plotlyChart', {
+                format: 'png',
+                width: 1200,
+                height: 800,
+                filename: `grafica-3d-{{ $vista }}-${Date.now()}`
+            });
+        } else if (currentChart) {
+            // Descargar con Chart.js
+            const link = document.createElement('a');
+            link.download = `grafica-${currentType}-${Date.now()}.png`;
+            link.href = currentChart.toBase64Image();
+            link.click();
+        }
     }
 
     function exportToExcel() {
