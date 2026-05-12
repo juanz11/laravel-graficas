@@ -191,6 +191,19 @@
         background: #f8f9fa;
     }
 
+    .fullscreen {
+        box-shadow: 0 0 50px rgba(0,0,0,0.3) !important;
+        border-radius: 0 !important;
+    }
+
+    .fullscreen .chart-container {
+        height: calc(100vh - 200px) !important;
+    }
+
+    .fullscreen .table-wrapper {
+        max-height: calc(100vh - 150px) !important;
+    }
+
     .error-card {
         background: #f8d7da;
         border: 1px solid #f5c6cb;
@@ -557,9 +570,6 @@
             <button class="btn-chart-type" onclick="changeChartType('polarArea')" data-type="polarArea">
                 🎯 Área Polar
             </button>
-            <button class="btn-chart-type" onclick="changeChartType('3d')" data-type="3d">
-                🌐 Gráfica 3D
-            </button>
         </div>
     </div>
 
@@ -571,16 +581,20 @@
         </h2>
         <div class="chart-container">
             <canvas id="mainChart"></canvas>
-            <div id="plotlyChart" style="width:100%;height:400px;display:none;"></div>
         </div>
         <div class="export-buttons">
             <button class="btn-export" onclick="downloadChart()">💾 Descargar Gráfica</button>
             <button class="btn-export" onclick="exportToExcel()">📊 Exportar Datos</button>
+            <button class="btn-export" onclick="toggleFullscreen()">🖥️ Pantalla Completa</button>
         </div>
     </div>
 
     <!-- Tabla de datos -->
     <div class="table-card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+            <h3 style="margin: 0; color: #2d3748;">📋 Datos Detallados</h3>
+            <button class="btn-export" onclick="toggleTableFullscreen()">🖥️ Pantalla Completa</button>
+        </div>
         <div class="table-wrapper">
             <table>
                 <thead>
@@ -614,7 +628,6 @@
 
 @push('scripts')
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
 <script>
     const labels = @json($labels);
     const data = @json($percentages);
@@ -632,17 +645,11 @@
     let currentType = 'doughnut';
 
     function createChart(type) {
-        // Mostrar canvas y ocultar div de Plotly
+        // Obtener canvas
         const canvas = document.getElementById('mainChart');
-        const plotlyDiv = document.getElementById('plotlyChart');
         
         if (canvas) {
             canvas.style.display = 'block';
-        }
-        if (plotlyDiv) {
-            plotlyDiv.style.display = 'none';
-            // Limpiar Plotly para liberar memoria
-            Plotly.purge(plotlyDiv);
         }
         
         // Esperar un frame para que el canvas sea visible antes de obtener contexto
@@ -747,130 +754,216 @@
             'bar': { icon: '📊', text: `Comparación por ${vistaText} (Barras)` },
             'horizontalBar': { icon: '📈', text: `Comparación por ${vistaText} (Barras Horizontales)` },
             'line': { icon: '📉', text: `Tendencia por ${vistaText} (Líneas)` },
-            'polarArea': { icon: '🎯', text: `Distribución por ${vistaText} (Área Polar)` },
-            '3d': { icon: '🌐', text: `Distribución 3D por ${vistaText}` }
+            'polarArea': { icon: '🎯', text: `Distribución por ${vistaText} (Área Polar)` }
         };
 
         document.getElementById('chartTitleIcon').textContent = titles[type].icon;
         document.getElementById('chartTitleText').textContent = titles[type].text;
 
         // Crear nueva gráfica
-        if (type === '3d') {
-            create3DChart();
-        } else {
-            createChart(type);
-        }
+        createChart(type);
     }
 
-    function create3DChart() {
-        // Ocultar canvas de Chart.js y mostrar div de Plotly
-        const canvas = document.getElementById('mainChart');
-        const plotlyDiv = document.getElementById('plotlyChart');
-        
-        if (canvas) canvas.style.display = 'none';
-        if (plotlyDiv) {
-            plotlyDiv.style.display = 'block';
-        } else {
-            // Crear div de Plotly si no existe
-            const container = canvas.parentElement;
-            const newDiv = document.createElement('div');
-            newDiv.id = 'plotlyChart';
-            newDiv.style.cssText = 'width:100%;height:400px;display:block;';
-            container.appendChild(newDiv);
-        }
-        
-        // Preparar datos para Plotly 3D
-        const trace = {
-            x: labels,
-            y: labels.map((_, i) => i), // Posición Y para separación visual
-            z: units, // Valores de unidades como altura Z
-            type: 'scatter3d',
-            mode: 'markers+lines',
-            marker: {
-                size: 12,
-                color: units,
-                colorscale: 'Viridis',
-                showscale: true,
-                colorbar: {
-                    title: 'Unidades',
-                    thickness: 20
-                }
-            },
-            line: {
-                color: 'rgba(125, 125, 125, 0.3)',
-                width: 2
-            },
-            text: labels.map((label, i) => `${label}: ${units[i].toLocaleString()} unidades (${data[i].toFixed(2)}%)`),
-            hovertemplate: '<b>%{text}</b><extra></extra>'
-        };
-        
-        const layout = {
-            title: '',
-            scene: {
-                xaxis: {
-                    title: '{{ $vista === "producto" ? "Productos" : "Clientes" }}',
-                    tickangle: -45
-                },
-                yaxis: {
-                    title: 'Índice',
-                    showticklabels: false
-                },
-                zaxis: {
-                    title: 'Unidades'
-                },
-                camera: {
-                    eye: {
-                        x: 1.5,
-                        y: 1.5,
-                        z: 1.5
-                    }
-                }
-            },
-            margin: {
-                l: 0,
-                r: 0,
-                b: 0,
-                t: 0
-            },
-            paper_bgcolor: 'rgba(0,0,0,0)',
-            plot_bgcolor: 'rgba(0,0,0,0)'
-        };
-        
-        const config = {
-            responsive: true,
-            displayModeBar: true,
-            displaylogo: false,
-            modeBarButtonsToRemove: ['pan2d', 'select2d', 'lasso2d', 'resetScale2d'],
-            toImageButtonOptions: {
-                format: 'png',
-                filename: `grafica-3d-{{ $vista }}-${Date.now()}`,
-                height: 800,
-                width: 1200,
-                scale: 2
-            }
-        };
-        
-        Plotly.newPlot('plotlyChart', [trace], layout, config);
-        
-        // Guardar referencia para descarga
-        currentChart = null; // Plotly maneja su propia descarga
-    }
-
+    
     function downloadChart() {
-        if (currentType === '3d') {
-            // Descargar con Plotly
-            Plotly.downloadImage('plotlyChart', {
-                format: 'png',
-                width: 1200,
-                height: 800,
-                filename: `grafica-3d-{{ $vista }}-${Date.now()}`
-            });
-        } else if (currentChart) {
+        if (currentChart) {
             // Descargar con Chart.js
             const link = document.createElement('a');
             link.download = `grafica-${currentType}-${Date.now()}.png`;
             link.href = currentChart.toBase64Image();
             link.click();
+        }
+    }
+
+    function toggleFullscreen() {
+        const chartCard = document.querySelector('.chart-card');
+        const isFullscreen = chartCard.classList.contains('fullscreen');
+        
+        if (!isFullscreen) {
+            chartCard.classList.add('fullscreen');
+            chartCard.style.position = 'fixed';
+            chartCard.style.top = '0';
+            chartCard.style.left = '0';
+            chartCard.style.width = '100vw';
+            chartCard.style.height = '100vh';
+            chartCard.style.zIndex = '9999';
+            chartCard.style.backgroundColor = 'white';
+            chartCard.style.padding = '2rem';
+            chartCard.style.overflow = 'auto';
+            
+            // Ajustar tamaño del contenedor de gráfica
+            const chartContainer = chartCard.querySelector('.chart-container');
+            chartContainer.style.height = 'calc(100vh - 200px)';
+            
+            // Recrear gráfica actual para ajustar al nuevo tamaño
+            setTimeout(() => {
+                createChart(currentType);
+            }, 100);
+            
+            // Agregar botones de navegación en pantalla completa
+            const navButtons = document.createElement('div');
+            navButtons.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 10000; display: flex; gap: 10px;';
+            navButtons.innerHTML = `
+                <button onclick="previousChart()" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">
+                    ⬅️ Anterior
+                </button>
+                <button onclick="nextChart()" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">
+                    Siguiente ➡️
+                </button>
+                <button onclick="exitFullscreen()" style="padding: 10px 20px; background: #dc3545; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px;">
+                    🔽 Salir
+                </button>
+            `;
+            chartCard.appendChild(navButtons);
+            
+            // Cambiar texto del botón original
+            event.target.textContent = '🔽 Salir Pantalla Completa';
+        } else {
+            // Restaurar estado normal
+            chartCard.classList.remove('fullscreen');
+            chartCard.style.cssText = '';
+            const chartContainer = chartCard.querySelector('.chart-container');
+            chartContainer.style.cssText = '';
+            
+            // Eliminar botones de navegación
+            const navButtons = chartCard.querySelector('div[style*="position: fixed"]');
+            if (navButtons) navButtons.remove();
+            
+            // Recrear gráfica para ajustar al tamaño original
+            setTimeout(() => {
+                createChart(currentType);
+            }, 100);
+            
+            // Cambiar texto del botón
+            event.target.textContent = '🖥️ Pantalla Completa';
+        }
+    }
+
+    function toggleTableFullscreen() {
+        const tableCard = document.querySelector('.table-card');
+        const isFullscreen = tableCard.classList.contains('fullscreen');
+        
+        if (!isFullscreen) {
+            tableCard.classList.add('fullscreen');
+            tableCard.style.position = 'fixed';
+            tableCard.style.top = '0';
+            tableCard.style.left = '0';
+            tableCard.style.width = '100vw';
+            tableCard.style.height = '100vh';
+            tableCard.style.zIndex = '9999';
+            tableCard.style.backgroundColor = 'white';
+            tableCard.style.padding = '2rem';
+            tableCard.style.overflow = 'auto';
+            
+            // Cambiar texto del botón
+            event.target.textContent = '🔽 Salir Pantalla Completa';
+        } else {
+            // Restaurar estado normal
+            tableCard.classList.remove('fullscreen');
+            tableCard.style.cssText = '';
+            
+            // Cambiar texto del botón
+            event.target.textContent = '🖥️ Pantalla Completa';
+        }
+    }
+
+    function nextChart() {
+        const chartTypes = ['doughnut', 'pie', 'bar', 'horizontalBar', 'line', 'polarArea'];
+        const currentIndex = chartTypes.indexOf(currentType);
+        const nextIndex = (currentIndex + 1) % chartTypes.length;
+        const nextType = chartTypes[nextIndex];
+        
+        // Actualizar botón activo
+        document.querySelectorAll('.btn-chart-type').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        document.querySelector(`[data-type="${nextType}"]`).classList.add('active');
+        
+        // Cambiar gráfica
+        currentType = nextType;
+        if (nextType === '3d') {
+            create3DChart();
+        } else {
+            createChart(nextType);
+        }
+        
+        // Actualizar título
+        const currentVista = '{{ $vista }}';
+        const vistaText = currentVista === 'producto' ? 'Producto' : 'Cliente';
+        const titles = {
+            'doughnut': { icon: '🍩', text: `Distribución por ${vistaText} (Dona)` },
+            'pie': { icon: '🥧', text: `Distribución por ${vistaText} (Pastel)` },
+            'bar': { icon: '📊', text: `Comparación por ${vistaText} (Barras)` },
+            'horizontalBar': { icon: '📈', text: `Comparación por ${vistaText} (Barras Horizontales)` },
+            'line': { icon: '📉', text: `Tendencia por ${vistaText} (Líneas)` },
+            'polarArea': { icon: '🎯', text: `Distribución por ${vistaText} (Área Polar)` }
+        };
+        
+        document.getElementById('chartTitleIcon').textContent = titles[nextType].icon;
+        document.getElementById('chartTitleText').textContent = titles[nextType].text;
+    }
+
+    function previousChart() {
+        const chartTypes = ['doughnut', 'pie', 'bar', 'horizontalBar', 'line', 'polarArea'];
+        const currentIndex = chartTypes.indexOf(currentType);
+        const prevIndex = currentIndex === 0 ? chartTypes.length - 1 : currentIndex - 1;
+        const prevType = chartTypes[prevIndex];
+        
+        // Actualizar botón activo
+        document.querySelectorAll('.btn-chart-type').forEach(btn => {
+            btn.classList.remove('active');
+        });
+        document.querySelector(`[data-type="${prevType}"]`).classList.add('active');
+        
+        // Cambiar gráfica
+        currentType = prevType;
+        if (prevType === '3d') {
+            create3DChart();
+        } else {
+            createChart(prevType);
+        }
+        
+        // Actualizar título
+        const currentVista = '{{ $vista }}';
+        const vistaText = currentVista === 'producto' ? 'Producto' : 'Cliente';
+        const titles = {
+            'doughnut': { icon: '🍩', text: `Distribución por ${vistaText} (Dona)` },
+            'pie': { icon: '🥧', text: `Distribución por ${vistaText} (Pastel)` },
+            'bar': { icon: '📊', text: `Comparación por ${vistaText} (Barras)` },
+            'horizontalBar': { icon: '📈', text: `Comparación por ${vistaText} (Barras Horizontales)` },
+            'line': { icon: '📉', text: `Tendencia por ${vistaText} (Líneas)` },
+            'polarArea': { icon: '🎯', text: `Distribución por ${vistaText} (Área Polar)` }
+        };
+        
+        document.getElementById('chartTitleIcon').textContent = titles[prevType].icon;
+        document.getElementById('chartTitleText').textContent = titles[prevType].text;
+    }
+
+    function exitFullscreen() {
+        const chartCard = document.querySelector('.chart-card');
+        if (chartCard && chartCard.classList.contains('fullscreen')) {
+            // Restaurar estado normal
+            chartCard.classList.remove('fullscreen');
+            chartCard.style.cssText = '';
+            const chartContainer = chartCard.querySelector('.chart-container');
+            chartContainer.style.cssText = '';
+            
+            // Eliminar botones de navegación
+            const navButtons = chartCard.querySelector('div[style*="position: fixed"]');
+            if (navButtons) navButtons.remove();
+            
+            // Cambiar texto del botón original - buscar más específicamente
+            const allButtons = document.querySelectorAll('button');
+            allButtons.forEach(btn => {
+                if (btn.textContent.includes('Salir Pantalla Completa')) {
+                    btn.textContent = '🖥️ Pantalla Completa';
+                }
+            });
+            
+            // Recrear gráfica para ajustar al tamaño original
+            setTimeout(() => {
+                createChart(currentType);
+            }, 100);
         }
     }
 
@@ -912,6 +1005,29 @@
         // Liberar URL
         setTimeout(() => URL.revokeObjectURL(link.href), 100);
     }
+
+    // Agregar soporte para teclas de navegación en pantalla completa
+    document.addEventListener('keydown', function(e) {
+        const chartCard = document.querySelector('.chart-card');
+        const isFullscreen = chartCard && chartCard.classList.contains('fullscreen');
+        
+        if (isFullscreen) {
+            switch(e.key) {
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    previousChart();
+                    break;
+                case 'ArrowRight':
+                    e.preventDefault();
+                    nextChart();
+                    break;
+                case 'Escape':
+                    e.preventDefault();
+                    exitFullscreen();
+                    break;
+            }
+        }
+    });
 
     // Inicializar gráfica
     createChart('doughnut');
