@@ -370,6 +370,14 @@
             <div class="stat-label">Meses Filtrados</div>
         </div>
         <div class="stat-box">
+            <div class="stat-value">{{ count($selectedClientes ?? []) > 0 ? count($selectedClientes) : 'Todos' }}</div>
+            <div class="stat-label">Clientes Filtrados</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat-value">{{ count($selectedClases ?? []) > 0 ? count($selectedClases) : 'Todas' }}</div>
+            <div class="stat-label">Clases Filtradas</div>
+        </div>
+        <div class="stat-box">
             <div class="stat-value">{{ count($selectedProductos) > 0 ? count($selectedProductos) : 'Todos' }}</div>
             <div class="stat-label">Productos Filtrados</div>
         </div>
@@ -398,6 +406,76 @@
                             </option>
                         @endforeach
                     </select>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Clientes</label>
+
+                    <!-- Inputs hidden para enviar los seleccionados -->
+                    <div id="clienteHiddenInputs">
+                        @foreach($selectedClientes ?? [] as $sc)
+                            <input type="hidden" name="cliente[]" value="{{ $sc }}">
+                        @endforeach
+                    </div>
+
+                    <!-- Selector con búsqueda -->
+                    <div class="producto-selector">
+                        <div class="producto-search-wrap">
+                            <input type="text" id="clienteSearch" placeholder="🔍 Buscar cliente..." class="producto-search-input" autocomplete="off">
+                            <span id="clienteCount" class="producto-count">
+                                {{ count($selectedClientes ?? []) > 0 ? count($selectedClientes) . ' seleccionado(s)' : 'Todos' }}
+                            </span>
+                        </div>
+                        <div class="producto-dropdown" id="clienteDropdown">
+                            <div class="producto-dropdown-actions">
+                                <button type="button" onclick="selectAllClientes()">Seleccionar todos</button>
+                                <button type="button" onclick="clearClientes()">Limpiar</button>
+                            </div>
+                            <div class="producto-list" id="clienteList">
+                                @foreach ($availableClientes ?? [] as $c)
+                                    <label class="producto-item {{ in_array($c, $selectedClientes ?? []) ? 'selected' : '' }}" data-value="{{ $c }}">
+                                        <input type="checkbox" value="{{ $c }}" {{ in_array($c, $selectedClientes ?? []) ? 'checked' : '' }} onchange="toggleCliente(this)">
+                                        <span>{{ $c }}</span>
+                                    </label>
+                                @endforeach
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Clase Terapéutica</label>
+
+                    <!-- Inputs hidden para enviar los seleccionados -->
+                    <div id="claseHiddenInputs">
+                        @foreach($selectedClases ?? [] as $sc)
+                            <input type="hidden" name="clase[]" value="{{ $sc }}">
+                        @endforeach
+                    </div>
+
+                    <!-- Selector con búsqueda -->
+                    <div class="producto-selector">
+                        <div class="producto-search-wrap">
+                            <input type="text" id="claseSearch" placeholder="🔍 Buscar clase terapéutica..." class="producto-search-input" autocomplete="off">
+                            <span id="claseCount" class="producto-count">
+                                {{ count($selectedClases ?? []) > 0 ? count($selectedClases) . ' seleccionado(s)' : 'Todas' }}
+                            </span>
+                        </div>
+                        <div class="producto-dropdown" id="claseDropdown">
+                            <div class="producto-dropdown-actions">
+                                <button type="button" onclick="selectAllClases()">Seleccionar todos</button>
+                                <button type="button" onclick="clearClases()">Limpiar</button>
+                            </div>
+                            <div class="producto-list" id="claseList">
+                                @foreach ($availableClases ?? [] as $c)
+                                    <label class="producto-item {{ in_array($c, $selectedClases ?? []) ? 'selected' : '' }}" data-value="{{ $c }}">
+                                        <input type="checkbox" value="{{ $c }}" {{ in_array($c, $selectedClases ?? []) ? 'checked' : '' }} onchange="toggleClase(this)">
+                                        <span>{{ $c }}</span>
+                                    </label>
+                                @endforeach
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="form-group" style="grid-column: 1 / -1;">
@@ -688,6 +766,106 @@
             cb.closest('.producto-item').classList.remove('selected');
         });
         syncHiddenInputs();
+    }
+
+    // Funciones para clientes
+    const clienteSearchInput = document.getElementById('clienteSearch');
+    const clienteDropdown = document.getElementById('clienteDropdown');
+
+    clienteSearchInput.addEventListener('focus', () => clienteDropdown.classList.add('open'));
+
+    clienteSearchInput.addEventListener('input', function () {
+        const q = this.value.toLowerCase();
+        document.querySelectorAll('#clienteList .producto-item').forEach(item => {
+            const text = item.querySelector('span').textContent.toLowerCase();
+            item.classList.toggle('hidden', !text.includes(q));
+        });
+    });
+
+    function toggleCliente(checkbox) {
+        const item = checkbox.closest('.producto-item');
+        item.classList.toggle('selected', checkbox.checked);
+        syncHiddenClientes();
+    }
+
+    function syncHiddenClientes() {
+        const container = document.getElementById('clienteHiddenInputs');
+        container.innerHTML = '';
+        document.querySelectorAll('#clienteList .producto-item input:checked').forEach(cb => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'cliente[]';
+            input.value = cb.value;
+            container.appendChild(input);
+        });
+        const count = container.querySelectorAll('input').length;
+        document.getElementById('clienteCount').textContent = count > 0 ? count + ' seleccionado(s)' : 'Todos';
+    }
+
+    function selectAllClientes() {
+        document.querySelectorAll('#clienteList .producto-item:not(.hidden) input').forEach(cb => {
+            cb.checked = true;
+            cb.closest('.producto-item').classList.add('selected');
+        });
+        syncHiddenClientes();
+    }
+
+    function clearClientes() {
+        document.querySelectorAll('#clienteList .producto-item input').forEach(cb => {
+            cb.checked = false;
+            cb.closest('.producto-item').classList.remove('selected');
+        });
+        syncHiddenClientes();
+    }
+
+    // Funciones para clases terapéuticas
+    const claseSearchInput = document.getElementById('claseSearch');
+    const claseDropdown = document.getElementById('claseDropdown');
+
+    claseSearchInput.addEventListener('focus', () => claseDropdown.classList.add('open'));
+
+    claseSearchInput.addEventListener('input', function () {
+        const q = this.value.toLowerCase();
+        document.querySelectorAll('#claseList .producto-item').forEach(item => {
+            const text = item.querySelector('span').textContent.toLowerCase();
+            item.classList.toggle('hidden', !text.includes(q));
+        });
+    });
+
+    function toggleClase(checkbox) {
+        const item = checkbox.closest('.producto-item');
+        item.classList.toggle('selected', checkbox.checked);
+        syncHiddenClases();
+    }
+
+    function syncHiddenClases() {
+        const container = document.getElementById('claseHiddenInputs');
+        container.innerHTML = '';
+        document.querySelectorAll('#claseList .producto-item input:checked').forEach(cb => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'clase[]';
+            input.value = cb.value;
+            container.appendChild(input);
+        });
+        const count = container.querySelectorAll('input').length;
+        document.getElementById('claseCount').textContent = count > 0 ? count + ' seleccionado(s)' : 'Todas';
+    }
+
+    function selectAllClases() {
+        document.querySelectorAll('#claseList .producto-item:not(.hidden) input').forEach(cb => {
+            cb.checked = true;
+            cb.closest('.producto-item').classList.add('selected');
+        });
+        syncHiddenClases();
+    }
+
+    function clearClases() {
+        document.querySelectorAll('#claseList .producto-item input').forEach(cb => {
+            cb.checked = false;
+            cb.closest('.producto-item').classList.remove('selected');
+        });
+        syncHiddenClases();
     }
 </script>
 @endpush

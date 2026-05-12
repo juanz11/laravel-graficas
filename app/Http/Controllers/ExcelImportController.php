@@ -280,6 +280,16 @@ class ExcelImportController extends Controller
             $selectedProductos = [$selectedProductos];
         }
 
+        $selectedClientes = $request->input('cliente', []);
+        if (!is_array($selectedClientes)) {
+            $selectedClientes = [$selectedClientes];
+        }
+
+        $selectedClases = $request->input('clase', []);
+        if (!is_array($selectedClases)) {
+            $selectedClases = [$selectedClases];
+        }
+
         $query = RegistroExcel::where('importacion_id', $importacionId);
 
         if ($selectedYear !== null) {
@@ -288,6 +298,14 @@ class ExcelImportController extends Controller
 
         if ($selectedMonths !== []) {
             $query->whereIn('mes', array_map('intval', $selectedMonths));
+        }
+
+        if ($selectedClientes !== []) {
+            $query->whereIn('cliente', $selectedClientes);
+        }
+
+        if ($selectedClases !== []) {
+            $query->whereIn('clase_terapeutica', $selectedClases);
         }
 
         if ($selectedProductos !== []) {
@@ -310,6 +328,20 @@ class ExcelImportController extends Controller
             ->pluck('mes')
             ->sort()
             ->values()
+            ->all();
+
+        $availableClientes = RegistroExcel::where('importacion_id', $importacionId)
+            ->whereNotNull('cliente')
+            ->distinct()
+            ->orderBy('cliente')
+            ->pluck('cliente')
+            ->all();
+
+        $availableClases = RegistroExcel::where('importacion_id', $importacionId)
+            ->whereNotNull('clase_terapeutica')
+            ->distinct()
+            ->orderBy('clase_terapeutica')
+            ->pluck('clase_terapeutica')
             ->all();
 
         $availableProductos = RegistroExcel::where('importacion_id', $importacionId)
@@ -350,9 +382,13 @@ class ExcelImportController extends Controller
             'totalUnits' => $totalUnits,
             'selectedYear' => $selectedYear,
             'selectedMonths' => array_map('intval', $selectedMonths),
+            'selectedClientes' => $selectedClientes,
+            'selectedClases' => $selectedClases,
             'selectedProductos' => $selectedProductos,
             'availableYears' => $availableYears,
             'availableMonths' => $availableMonths,
+            'availableClientes' => $availableClientes,
+            'availableClases' => $availableClases,
             'availableProductos' => $availableProductos,
             'error' => null,
         ]);
