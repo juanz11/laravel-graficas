@@ -12,6 +12,7 @@ class BaseDatosSheetImport implements ToCollection
     // Mapa de columnas: índice numérico => nombre normalizado
     // Basado en el Excel real: Código(0), Productos(1), Clase Terapéutica(2),
     // Cliente(3), Clase(4), Mes(5), Año(6), Unidades(7)
+    // NOTA: El Excel tiene Mes=2020, Año=2020, así que Mes está en columna 5 y Año en columna 6
     private array $columnMap = [];
 
     public function __construct()
@@ -38,6 +39,20 @@ class BaseDatosSheetImport implements ToCollection
                         $this->columnMap[$col] = $key;
                     }
                 }
+                
+                // Forzar mapeo correcto según estructura del Excel
+                $this->columnMap[0] = 'codigo';
+                $this->columnMap[1] = 'productos';
+                $this->columnMap[2] = 'clase_terapeutica';
+                $this->columnMap[3] = 'cliente';
+                $this->columnMap[4] = 'clase';
+                $this->columnMap[5] = 'mes';
+                $this->columnMap[6] = 'ano';
+                $this->columnMap[7] = 'unidades';
+                
+                // Debug: Mostrar cómo se mapearon las columnas
+                \Log::info('Encabezados encontrados: ', $rowArr);
+                \Log::info('Mapa de columnas: ', $this->columnMap);
                 break;
             }
 
@@ -54,7 +69,13 @@ class BaseDatosSheetImport implements ToCollection
             $rowArr = $row->toArray();
             $mapped = [];
             foreach ($this->columnMap as $col => $key) {
-                $mapped[$key] = $rowArr[$col] ?? null;
+                $value = $rowArr[$col] ?? null;
+                $mapped[$key] = $value;
+                
+                // Debug para valores de mes
+                if ($key === 'mes') {
+                    \Log::info("Valor de mes encontrado: " . var_export($value, true));
+                }
             }
             return $mapped;
         })->filter(function ($row) {
@@ -77,7 +98,11 @@ class BaseDatosSheetImport implements ToCollection
 
         $key = str_replace(['.', ':'], '', $key);
         $key = str_replace(' ', '_', $key);
-        $key = str_replace('ano', 'ano', $key);
+        
+        // Normalizar campo de año - detectar múltiples variaciones
+        if (preg_match('/(año|ano|year)/i', $key)) {
+            $key = 'ano';
+        }
 
         return $key;
     }

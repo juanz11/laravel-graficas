@@ -218,7 +218,7 @@ class ExcelImportController extends Controller
                 'clase_terapeutica' => $rowArr['clase_terapeutica'] ?? null,
                 'cliente'           => $rowArr['cliente'] ?? null,
                 'clase'             => $rowArr['clase'] ?? null,
-                'mes'               => isset($rowArr['mes']) ? (int) $rowArr['mes'] : null,
+                'mes'               => isset($rowArr['mes']) ? trim((string) $rowArr['mes']) : null,
                 'ano'               => isset($rowArr['ano']) ? (int) $rowArr['ano'] : null,
                 'unidades'          => $units,
             ]);
@@ -270,46 +270,40 @@ class ExcelImportController extends Controller
             ]);
         }
 
+        $query = RegistroExcel::where('importacion_id', $importacionId);
+
         $selectedYear = $request->integer('anio') ?: null;
-        $selectedMonths = $request->input('mes', []);
-        if (!is_array($selectedMonths)) {
-            $selectedMonths = [$selectedMonths];
+        if ($selectedYear !== null) {
+            $query->where('ano', $selectedYear);
         }
+
+        $selectedMonths = $request->input('mes', []);
+        if (!empty($selectedMonths)) {
+            $query->whereIn('mes', $selectedMonths);
+        }
+
         $selectedProductos = $request->input('producto', []);
         if (!is_array($selectedProductos)) {
             $selectedProductos = [$selectedProductos];
+        }
+        if (!empty($selectedProductos)) {
+            $query->whereIn('productos', $selectedProductos);
         }
 
         $selectedClientes = $request->input('cliente', []);
         if (!is_array($selectedClientes)) {
             $selectedClientes = [$selectedClientes];
         }
+        if (!empty($selectedClientes)) {
+            $query->whereIn('cliente', $selectedClientes);
+        }
 
         $selectedClases = $request->input('clase', []);
         if (!is_array($selectedClases)) {
             $selectedClases = [$selectedClases];
         }
-
-        $query = RegistroExcel::where('importacion_id', $importacionId);
-
-        if ($selectedYear !== null) {
-            $query->where('ano', $selectedYear);
-        }
-
-        if ($selectedMonths !== []) {
-            $query->whereIn('mes', array_map('intval', $selectedMonths));
-        }
-
-        if ($selectedClientes !== []) {
-            $query->whereIn('cliente', $selectedClientes);
-        }
-
-        if ($selectedClases !== []) {
+        if (!empty($selectedClases)) {
             $query->whereIn('clase_terapeutica', $selectedClases);
-        }
-
-        if ($selectedProductos !== []) {
-            $query->whereIn('productos', $selectedProductos);
         }
 
         $registros = $query->get();
@@ -322,11 +316,74 @@ class ExcelImportController extends Controller
             ->values()
             ->all();
 
+        // Debug: Verificar qué años se encontraron
+        \Log::info('Importación ID: ' . $importacionId);
+        \Log::info('Años disponibles: ', $availableYears);
+        
+        // Verificar si hay datos en la tabla
+        $totalRegistros = RegistroExcel::where('importacion_id', $importacionId)->count();
+        \Log::info('Total registros: ' . $totalRegistros);
+        
+        // Verificar todos los valores únicos de mes
+        $todosLosMeses = RegistroExcel::where('importacion_id', $importacionId)
+            ->whereNotNull('mes')
+            ->distinct()
+            ->pluck('mes')
+            ->sort()
+            ->values()
+            ->all();
+        \Log::info('Todos los valores de mes: ', $todosLosMeses);
+        
+        // Verificar si hay otras importaciones con datos de meses correctos
+        $todasLasImportaciones = \App\Models\Importacion::pluck('id')->all();
+        \Log::info('Todas las importaciones: ', $todasLasImportaciones);
+        
+        foreach ($todasLasImportaciones as $id) {
+            $mesesImportacion = RegistroExcel::where('importacion_id', $id)
+                ->whereNotNull('mes')
+                ->distinct()
+                ->pluck('mes')
+                ->sort()
+                ->values()
+                ->all();
+            \Log::info("Meses en importación $id: ", $mesesImportacion);
+        }
+        
+        // Verificar algunas filas de ejemplo
+        $ejemploRegistros = RegistroExcel::where('importacion_id', $importacionId)
+            ->select('ano', 'mes', 'cliente', 'productos')
+            ->limit(5)
+            ->get()
+            ->toArray();
+        \Log::info('Ejemplos de registros: ', $ejemploRegistros);
+
         $availableMonths = RegistroExcel::where('importacion_id', $importacionId)
             ->whereNotNull('mes')
             ->distinct()
             ->pluck('mes')
             ->sort()
+            ->map(function($mes) {
+                $mes = trim($mes);
+                
+                // Si el mes es un número (1-12), convertirlo a nombre
+                if (is_numeric($mes) && $mes >= 1 && $mes <= 12) {
+                    $meses = [
+                        1 => 'Enero', 2 => 'Febrero', 3 => 'Marzo', 4 => 'Abril',
+                        5 => 'Mayo', 6 => 'Junio', 7 => 'Julio', 8 => 'Agosto',
+                        9 => 'Septiembre', 10 => 'Octubre', 11 => 'Noviembre', 12 => 'Diciembre'
+                    ];
+                    return $meses[intval($mes)];
+                }
+                
+                // Si el mes es un número grande (año como 2020, 2021), mostrar como está
+                if (is_numeric($mes) && $mes > 12) {
+                    return "Año $mes (como mes)";
+                }
+                
+                // Si ya es texto, limpiarlo y capitalizarlo
+                return ucfirst(strtolower($mes));
+            })
+            ->unique()
             ->values()
             ->all();
 

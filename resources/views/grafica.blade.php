@@ -415,7 +415,7 @@
                     <select id="mes" name="mes[]" multiple class="form-select" style="height: 120px;">
                         @foreach ($availableMonths as $m)
                             <option value="{{ $m }}" @selected(in_array($m, $selectedMonths, true))>
-                                Mes {{ $m }}
+                                {{ $m }}
                             </option>
                         @endforeach
                     </select>
