@@ -29,18 +29,10 @@ class BaseDatosSheetImport implements ToCollection
             $rowArr = $row->toArray();
             $rowLower = array_map(fn($v) => mb_strtolower(trim((string)($v ?? ''))), $rowArr);
 
-            // Detectar si esta fila contiene los encabezados clave
             if (in_array('cliente', $rowLower) && in_array('unidades', $rowLower)) {
                 $headerRowIndex = $index;
-                // Construir mapa de columnas
-                foreach ($rowArr as $col => $header) {
-                    $key = $this->normalizeKey((string)($header ?? ''));
-                    if ($key !== '') {
-                        $this->columnMap[$col] = $key;
-                    }
-                }
                 
-                // Forzar mapeo correcto según estructura del Excel
+                // Forzar mapeo correcto según estructura del Excel base
                 $this->columnMap[0] = 'codigo';
                 $this->columnMap[1] = 'productos';
                 $this->columnMap[2] = 'clase_terapeutica';
@@ -49,10 +41,25 @@ class BaseDatosSheetImport implements ToCollection
                 $this->columnMap[5] = 'mes';
                 $this->columnMap[6] = 'ano';
                 $this->columnMap[7] = 'unidades';
+
+                // Mapear columnas adicionales dinámicamente
+                foreach ($rowArr as $col => $header) {
+                    if (!isset($this->columnMap[$col])) {
+                        $key = $this->normalizeKey((string)($header ?? ''));
+                        // Mapear 'tasa', 'valor_usd' o similares
+                        if (str_contains($key, 'tasa')) $key = 'tasa';
+                        elseif (str_contains($key, 'usd')) $key = 'valor_usd';
+                        elseif (str_contains($key, 'bs') || str_contains($key, 'bolivare')) $key = 'valor_bs';
+
+                        if ($key !== '') {
+                            $this->columnMap[$col] = $key;
+                        }
+                    }
+                }
                 
                 // Debug: Mostrar cómo se mapearon las columnas
                 \Log::info('Encabezados encontrados: ', $rowArr);
-                \Log::info('Mapa de columnas: ', $this->columnMap);
+                \Log::info('Mapa de columnas final: ', $this->columnMap);
                 break;
             }
 

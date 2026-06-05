@@ -205,6 +205,22 @@ class ExcelImportController extends Controller
             'fecha_importacion' => now(),
         ]);
 
+        $parseCurrency = function($val) {
+            if ($val === null || $val === '') return null;
+            $val = preg_replace('/[^\d.,-]/', '', (string)$val);
+            if (strpos($val, ',') !== false && strpos($val, '.') !== false) {
+                if (strrpos($val, ',') > strrpos($val, '.')) {
+                    $val = str_replace('.', '', $val);
+                    $val = str_replace(',', '.', $val);
+                } else {
+                    $val = str_replace(',', '', $val);
+                }
+            } elseif (strpos($val, ',') !== false) {
+                $val = str_replace(',', '.', $val);
+            }
+            return $val === '' ? null : (float)$val;
+        };
+
         foreach ($rowsNormalized as $row) {
             $rowArr = is_array($row) ? $row : (method_exists($row, 'toArray') ? $row->toArray() : (array)$row);
 
@@ -221,6 +237,9 @@ class ExcelImportController extends Controller
                 'mes'               => isset($rowArr['mes']) ? trim((string) $rowArr['mes']) : null,
                 'ano'               => isset($rowArr['ano']) ? (int) $rowArr['ano'] : null,
                 'unidades'          => $units,
+                'tasa'              => $parseCurrency($rowArr['tasa'] ?? null),
+                'valor_usd'         => $parseCurrency($rowArr['valor_usd'] ?? null),
+                'valor_bs'          => $parseCurrency($rowArr['valor_bs'] ?? null),
             ]);
         }
 
@@ -409,10 +428,18 @@ class ExcelImportController extends Controller
             ->all();
 
         $vista = $request->input('vista', 'cliente');
+        $metrica = $request->input('metrica', 'unidades'); // 'unidades' o 'valor_usd'
         $unitsByLabel = [];
         $totalUnits = 0.0;
+        $totalTasa = 0.0;
+        $tasaCount = 0;
 
         foreach ($registros as $registro) {
+            // Filtrar registros vacíos si la métrica es USD
+            if ($metrica === 'valor_usd' && $registro->valor_usd === null) {
+                continue;
+            }
+
             if ($vista === 'producto') {
                 $label = trim($registro->productos ?? '');
                 if ($label === '') {
@@ -426,9 +453,14 @@ class ExcelImportController extends Controller
                 }
             }
 
-            $units = (float) $registro->unidades;
+            $units = $metrica === 'valor_usd' ? (float) $registro->valor_usd : (float) $registro->unidades;
             $unitsByLabel[$label] = ($unitsByLabel[$label] ?? 0) + $units;
             $totalUnits += $units;
+
+            if ($registro->tasa !== null) {
+                $totalTasa += (float) $registro->tasa;
+                $tasaCount++;
+            }
         }
 
         arsort($unitsByLabel);
@@ -441,12 +473,16 @@ class ExcelImportController extends Controller
             return round(($units / $totalUnits) * 100, 2);
         }, array_values($unitsByLabel));
 
+        $avgTasa = $tasaCount > 0 ? round($totalTasa / $tasaCount, 2) : null;
+
         return view('grafica', [
             'labels' => $labels,
             'percentages' => $percentages,
             'unitsByLabel' => $unitsByLabel,
             'totalUnits' => $totalUnits,
             'vista' => $vista,
+            'metrica' => $metrica,
+            'avgTasa' => $avgTasa,
             'selectedYear' => $selectedYear,
             'selectedMonths' => array_map('intval', $selectedMonths),
             'selectedClientes' => $selectedClientes,

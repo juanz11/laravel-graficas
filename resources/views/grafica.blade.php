@@ -367,9 +367,15 @@
     <!-- Resumen de estadísticas -->
     <div class="stats-summary">
         <div class="stat-box">
-            <div class="stat-value">{{ number_format($totalUnits, 0) }}</div>
-            <div class="stat-label">Total Unidades</div>
+            <div class="stat-value">{{ number_format($totalUnits, 2) }} {{ $metrica === 'valor_usd' ? 'USD' : '' }}</div>
+            <div class="stat-label">Total {{ $metrica === 'valor_usd' ? 'Valor USD' : 'Unidades' }}</div>
         </div>
+        @if(isset($avgTasa) && $avgTasa !== null)
+        <div class="stat-box">
+            <div class="stat-value">Bs. {{ number_format($avgTasa, 2) }}</div>
+            <div class="stat-label">Tasa Promedio</div>
+        </div>
+        @endif
         <div class="stat-box">
             <div class="stat-value">{{ count($labels) }}</div>
             <div class="stat-label">{{ $vista === 'producto' ? 'Productos' : 'Clientes' }}</div>
@@ -536,9 +542,25 @@
 
     <!-- Controles de tipo de gráfica -->
     <div class="chart-controls">
-        <div style="margin-bottom: 1rem;">
-            <strong>Vista de Datos:</strong>
-        </div>
+        <div style="display: flex; flex-wrap: wrap; gap: 2rem; margin-bottom: 1.5rem;">
+            <div>
+                <div style="margin-bottom: 0.5rem;">
+                    <strong>Métrica:</strong>
+                </div>
+                <div class="chart-type-buttons">
+                    <button class="btn-chart-type {{ $metrica === 'unidades' ? 'active' : '' }}" onclick="changeMetrica('unidades')">
+                        📦 Unidades
+                    </button>
+                    <button class="btn-chart-type {{ $metrica === 'valor_usd' ? 'active' : '' }}" onclick="changeMetrica('valor_usd')">
+                        💵 Valor USD
+                    </button>
+                </div>
+            </div>
+            
+            <div>
+                <div style="margin-bottom: 0.5rem;">
+                    <strong>Vista de Datos:</strong>
+                </div>
         <div class="chart-type-buttons" style="margin-bottom: 1.5rem;">
             <button class="btn-chart-type {{ $vista === 'cliente' ? 'active' : '' }}" onclick="changeView('cliente')" data-vista="cliente">
                 👥 Por Cliente
@@ -601,7 +623,7 @@
                     <tr>
                         <th>#</th>
                         <th>{{ $vista === 'producto' ? 'Producto' : 'Cliente' }}</th>
-                        <th>Unidades</th>
+                        <th>{{ $metrica === 'valor_usd' ? 'Valor USD' : 'Unidades' }}</th>
                         <th>Porcentaje</th>
                     </tr>
                 </thead>
@@ -703,7 +725,10 @@
                                     const label = context.label || '';
                                     const value = context.parsed.y || context.parsed || 0;
                                     const unitValue = units[context.dataIndex] || 0;
-                                    return `${label}: ${value.toFixed(2)}% (${unitValue.toLocaleString()} unidades)`;
+                                    const isUsd = '{{ $metrica }}' === 'valor_usd';
+                                    const formattedUnit = isUsd ? '$' + unitValue.toLocaleString(undefined, {minimumFractionDigits: 2}) : unitValue.toLocaleString();
+                                    const unitLabel = isUsd ? 'USD' : 'unidades';
+                                    return `${label}: ${value.toFixed(2)}% (${formattedUnit} ${unitLabel})`;
                                 }
                             }
                         }
@@ -731,6 +756,15 @@
         urlParams.set('vista', vista);
         
         // Recargar la página con la nueva vista
+        window.location.href = window.location.pathname + '?' + urlParams.toString();
+    }
+
+    function changeMetrica(metrica) {
+        // Obtener parámetros actuales de la URL
+        const urlParams = new URLSearchParams(window.location.search);
+        urlParams.set('metrica', metrica);
+        
+        // Recargar la página con la nueva métrica
         window.location.href = window.location.pathname + '?' + urlParams.toString();
     }
 
