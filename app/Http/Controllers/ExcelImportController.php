@@ -172,11 +172,15 @@ class ExcelImportController extends Controller
     public function import(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'excel' => ['required', 'file', 'mimes:xls,xlsx,xlsm'],
+            'archivo' => ['required', 'file', 'mimes:xls,xlsx,xlsm,txt'],
+            'tasa_usd' => ['nullable', 'numeric', 'min:0'],
         ]);
 
         /** @var \Illuminate\Http\UploadedFile $file */
-        $file = $validated['excel'];
+        $file = $validated['archivo'];
+        $extension = $file->getClientOriginalExtension();
+        $isTxt = strtolower($extension) === 'txt';
+        $tasaUSD = isset($validated['tasa_usd']) && is_numeric($validated['tasa_usd']) ? (float) $validated['tasa_usd'] : null;
 
         Storage::disk('local')->makeDirectory('imports');
 
@@ -187,22 +191,29 @@ class ExcelImportController extends Controller
         );
 
         $diskPath = Storage::disk('local')->path($path);
-        $sheetKey = $this->pickBaseDatosSheetKey($diskPath);
 
         try {
-            $import = new BaseDatosImport($sheetKey);
-            Excel::import($import, $diskPath);
-            $rows = $import->sheet->rows;
+            if ($isTxt) {
+                // Procesar archivo TXT
+                $rows = $this->parseTxtFile($diskPath);
+            } else {
+                // Procesar archivo Excel
+                $sheetKey = $this->pickBaseDatosSheetKey($diskPath);
+                $import = new BaseDatosImport($sheetKey);
+                Excel::import($import, $diskPath);
+                $rows = $import->sheet->rows;
+            }
         } catch (\Exception $e) {
-            return redirect()->route('import')->withErrors(['excel' => 'Error al procesar el archivo: ' . $e->getMessage()]);
+            return redirect()->route('import')->withErrors(['archivo' => 'Error al procesar el archivo: ' . $e->getMessage()]);
         }
 
-        $rowsNormalized = $rows; // Ya vienen mapeadas desde BaseDatosSheetImport
+        $rowsNormalized = $isTxt ? $rows : $rows; // Para TXT ya vienen normalizados
 
         $importacion = Importacion::create([
             'archivo_nombre' => $file->getClientOriginalName(),
             'archivo_path' => $path,
             'fecha_importacion' => now(),
+            'tasa_usd' => $tasaUSD,
         ]);
 
         $parseCurrency = function($val) {
@@ -246,6 +257,114 @@ class ExcelImportController extends Controller
         $request->session()->put('imports.base_datos_importacion_id', $importacion->id);
 
         return redirect()->route('grafica')->with('success', 'Archivo importado y guardado correctamente.');
+    }
+
+    private function parseTxtFile(string $filePath): array
+    {
+        $content = file_get_contents($filePath);
+        $lines = explode("\n", $content);
+        
+        \Log::info('Iniciando parseo de TXT. Total líneas: ' . count($lines));
+        
+        $rows = [];
+        $currentCliente = null;
+        $currentClase = null;
+        $mes = null;
+        $ano = null;
+        
+        foreach ($lines as $lineNumber => $line) {
+            $line = trim($line);
+            
+            // Saltar líneas vacías
+            if (empty($line)) {
+                continue;
+            }
+            
+            // Extraer fecha del reporte
+            if (preg_match('/Reporte de operaciones desde (\d{2})\/(\d{2})\/(\d{4})/', $line, $matches)) {
+                $mes = $matches[2];
+                $ano = $matches[3];
+                \Log::info("Fecha encontrada: Mes=$mes, Año=$ano");
+                continue;
+            }
+            
+            // Detectar línea de cliente - patrón más flexible
+            // Buscar líneas que terminan en C.A., S.A. o similar y tienen una clase al final
+            if (preg_match('/(.+?C\.A\.|S\.A\.|C\.A)\s+([A-Z\s]+)$/', $line, $matches)) {
+                $currentCliente = trim($matches[1]);
+                $currentClase = trim($matches[2]);
+                \Log::info("Cliente detectado: $currentCliente, Clase: $currentClase (línea $lineNumber)");
+                continue;
+            }
+            
+            // Detectar línea de producto - patrón más simple
+            // Buscar líneas que empiezan con código de producto (13 dígitos) seguido de descripción y números
+            if (preg_match('/^(\d{13})(.+?)\s+(\d+)\s+([\d.,]+)\s+([\d.,]+)/', $line, $matches)) {
+                $codigo = $matches[1];
+                $descripcion = trim($matches[2]);
+                $cantidad = $this->parseNumber($matches[3]);
+                $totalVentas = $this->parseNumber($matches[4]);
+                
+                $rows[] = [
+                    'codigo' => $codigo,
+                    'productos' => $descripcion,
+                    'clase_terapeutica' => '',
+                    'cliente' => $currentCliente,
+                    'clase' => $currentClase,
+                    'mes' => $mes,
+                    'ano' => $ano,
+                    'unidades' => $cantidad, // Usamos Cantidad como unidades
+                ];
+                
+                \Log::info("Producto agregado: $descripcion, Cliente: $currentCliente, Cantidad: $cantidad, Ventas: $totalVentas");
+            }
+        }
+        
+        \Log::info('Parseo completado. Total filas extraídas: ' . count($rows));
+        
+        return $rows;
+    }
+    
+    private function parseNumber(string $val): float
+    {
+        // Eliminar espacios en blanco
+        $val = trim($val);
+        
+        // Si está vacío, retornar 0
+        if (empty($val)) {
+            return 0.0;
+        }
+        
+        // Eliminar espacios dentro del número
+        $val = str_replace(' ', '', $val);
+        
+        // Formato venezolano: puntos para miles, comas para decimales
+        // Ejemplo: 2.470.755,14 -> 2470755.14
+        if (strpos($val, ',') !== false && strpos($val, '.') !== false) {
+            // Si hay ambos, el que está más a la derecha es el decimal
+            if (strrpos($val, ',') > strrpos($val, '.')) {
+                // Coma es decimal, punto es separador de miles
+                $val = str_replace('.', '', $val);  // Eliminar puntos de miles
+                $val = str_replace(',', '.', $val);  // Reemplazar coma por punto decimal
+            } else {
+                // Punto es decimal, coma es separador de miles
+                $val = str_replace(',', '', $val);  // Eliminar comas de miles
+            }
+        } elseif (strpos($val, ',') !== false) {
+            // Solo coma: asumir que es decimal (formato venezolano)
+            $val = str_replace(',', '.', $val);
+        }
+        // Si solo hay puntos, asumir que son separadores de miles y eliminarlos
+        elseif (strpos($val, '.') !== false) {
+            // Verificar si es un número decimal válido
+            $parts = explode('.', $val);
+            if (count($parts) > 2) {
+                // Múltiples puntos, son separadores de miles
+                $val = str_replace('.', '', $val);
+            }
+        }
+        
+        return (float) $val;
     }
 
     public function grafica(Request $request): View
@@ -324,6 +443,13 @@ class ExcelImportController extends Controller
         if (!empty($selectedClases)) {
             $query->whereIn('clase_terapeutica', $selectedClases);
         }
+
+        $tasaUSD = $request->input('tasa_usd');
+        // Usar la tasa guardada en la importación si no se proporcionó una en el request
+        if ($tasaUSD === null && $importacion->tasa_usd !== null) {
+            $tasaUSD = $importacion->tasa_usd;
+        }
+        $tasaUSD = is_numeric($tasaUSD) && $tasaUSD > 0 ? (float) $tasaUSD : null;
 
         $registros = $query->get();
 
@@ -435,8 +561,14 @@ class ExcelImportController extends Controller
         $tasaCount = 0;
 
         foreach ($registros as $registro) {
-            // Filtrar registros vacíos si la métrica es USD
-            if ($metrica === 'valor_usd' && $registro->valor_usd === null) {
+            // Calcular valor USD si se proporcionó una tasa
+            $valorUSD = null;
+            if ($tasaUSD !== null && $registro->unidades !== null) {
+                $valorUSD = (float) $registro->unidades / $tasaUSD;
+            }
+
+            // Filtrar registros vacíos si la métrica es USD y no hay valor calculado
+            if ($metrica === 'valor_usd' && $valorUSD === null) {
                 continue;
             }
 
@@ -453,12 +585,12 @@ class ExcelImportController extends Controller
                 }
             }
 
-            $units = $metrica === 'valor_usd' ? (float) $registro->valor_usd : (float) $registro->unidades;
+            $units = $metrica === 'valor_usd' ? $valorUSD : (float) $registro->unidades;
             $unitsByLabel[$label] = ($unitsByLabel[$label] ?? 0) + $units;
             $totalUnits += $units;
 
-            if ($registro->tasa !== null) {
-                $totalTasa += (float) $registro->tasa;
+            if ($tasaUSD !== null) {
+                $totalTasa += $tasaUSD;
                 $tasaCount++;
             }
         }
@@ -483,6 +615,7 @@ class ExcelImportController extends Controller
             'vista' => $vista,
             'metrica' => $metrica,
             'avgTasa' => $avgTasa,
+            'tasaUSD' => $tasaUSD,
             'selectedYear' => $selectedYear,
             'selectedMonths' => array_map('intval', $selectedMonths),
             'selectedClientes' => $selectedClientes,

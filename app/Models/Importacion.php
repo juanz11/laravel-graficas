@@ -13,6 +13,7 @@ class Importacion extends Model
         'archivo_nombre',
         'archivo_path',
         'fecha_importacion',
+        'tasa_usd',
     ];
 
     protected $casts = [

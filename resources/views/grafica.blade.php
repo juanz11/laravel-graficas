@@ -370,10 +370,10 @@
             <div class="stat-value">{{ number_format($totalUnits, 2) }} {{ $metrica === 'valor_usd' ? 'USD' : '' }}</div>
             <div class="stat-label">Total {{ $metrica === 'valor_usd' ? 'Valor USD' : 'Unidades' }}</div>
         </div>
-        @if(isset($avgTasa) && $avgTasa !== null)
+        @if(isset($tasaUSD) && $tasaUSD !== null)
         <div class="stat-box">
-            <div class="stat-value">Bs. {{ number_format($avgTasa, 2) }}</div>
-            <div class="stat-label">Tasa Promedio</div>
+            <div class="stat-value">Bs. {{ number_format($tasaUSD, 2) }}</div>
+            <div class="stat-label">Tasa USD</div>
         </div>
         @endif
         <div class="stat-box">
@@ -424,6 +424,21 @@
                                 {{ $m }}
                             </option>
                         @endforeach
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="tasa_usd" class="form-label">Tasa de Cambio USD</label>
+                    <input type="number" id="tasa_usd" name="tasa_usd" class="form-control" 
+                           value="{{ request()->input('tasa_usd') }}" 
+                           placeholder="Ej: 38.70" step="0.01" min="0">
+                </div>
+
+                <div class="form-group">
+                    <label for="metrica" class="form-label">Métrica</label>
+                    <select id="metrica" name="metrica" class="form-select">
+                        <option value="unidades" @selected($metrica === 'unidades')>Unidades</option>
+                        <option value="valor_usd" @selected($metrica === 'valor_usd')">Valor USD</option>
                     </select>
                 </div>
 

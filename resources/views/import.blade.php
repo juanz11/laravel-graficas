@@ -1,11 +1,11 @@
 @extends('layouts.admin')
 
-@section('title', 'Importar Excel')
+@section('title', 'Importar Archivo')
 
 @section('content')
 <div class="page-header">
-    <h1 class="page-title">Importar Archivo Excel</h1>
-    <p class="page-description">Sube tu archivo Excel con los datos de ventas para procesarlos y visualizarlos.</p>
+    <h1 class="page-title">Importar Archivo</h1>
+    <p class="page-description">Sube tu archivo Excel o TXT con los datos de ventas para procesarlos y visualizarlos.</p>
 </div>
 
 <style>
@@ -175,18 +175,25 @@
         @csrf
 
         <div class="form-group">
-            <label class="form-label" for="excel">Selecciona tu archivo Excel</label>
+            <label class="form-label" for="archivo">Selecciona tu archivo (Excel o TXT)</label>
             <div class="file-input-wrapper">
-                <input id="excel" name="excel" type="file" accept=".xls,.xlsx,.xlsm" required onchange="updateFileName(this)">
-                <label for="excel" class="file-input-label">
+                <input id="archivo" name="archivo" type="file" accept=".xls,.xlsx,.xlsm,.txt" required onchange="updateFileName(this)">
+                <label for="archivo" class="file-input-label">
                     <div>
                         <div class="file-icon">📁</div>
                         <div class="file-text">Haz clic para seleccionar archivo</div>
-                        <div class="file-hint">Formatos aceptados: .xls, .xlsx, .xlsm</div>
+                        <div class="file-hint">Formatos aceptados: .xls, .xlsx, .xlsm, .txt</div>
                     </div>
                 </label>
             </div>
             <div id="selectedFile" class="selected-file"></div>
+        </div>
+
+        <div class="form-group">
+            <label class="form-label" for="tasa_usd">Tasa de Cambio USD (opcional)</label>
+            <input type="number" id="tasa_usd" name="tasa_usd" class="form-input" 
+                   placeholder="Ej: 654.87" step="0.01" min="0">
+            <small style="color: #6c757d; font-size: 0.85rem;">Ingresa la tasa para calcular valores en USD automáticamente</small>
         </div>
 
         <button type="submit" class="btn-submit" id="submitBtn">
